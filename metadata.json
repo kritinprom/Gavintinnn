@@ -1,0 +1,6 @@
+{
+  "name": "CENTRO พระราม 2 - พุทธบูชา 2 | ผังโครงการและราคาบ้าน",
+  "description": "ระบบสำรวจผังโครงการ CENTRO พระราม 2 - พุทธบูชา 2 ดูข้อมูลแปลงบ้าน บ้านเลขที่ แบบบ้าน ขนาดที่ดิน และราคาของแต่ละหลังแบบอินเทอร์แอคทีฟ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

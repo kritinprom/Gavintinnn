@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Prompt', 'Anuphan', system-ui, sans-serif;
+    --font-sans: 'Anuphan', 'Prompt', system-ui, -apple-system, sans-serif;
+    --font-numeric: 'Anuphan', 'Prompt', system-ui, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #FCF9F5;
+    color: #272224;
+    letter-spacing: -0.005em;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: #F6DCE7;
+    color: #541536;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  .font-mono-tabular {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
