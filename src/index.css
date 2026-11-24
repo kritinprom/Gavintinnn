@@ -9,17 +9,29 @@
 
   body {
     font-family: var(--font-sans);
-    background-color: #FCF9F5;
-    color: #272224;
+    background-color: #F7F5F0;
+    background-image:
+      radial-gradient(ellipse 85% 440px at 50% 0%, rgba(20, 25, 31, 0.055), transparent 72%),
+      radial-gradient(ellipse 65% 320px at 22% 8%, rgba(197, 155, 72, 0.05), transparent 65%);
+    color: #14191F;
     letter-spacing: -0.005em;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
+  }
+
+  button,
+  a,
+  select,
+  [role="button"] {
+    touch-action: manipulation;
   }
 
   ::selection {
-    background-color: #F6DCE7;
-    color: #541536;
+    background-color: #F2E7CC;
+    color: #14191F;
   }
 
   h1, h2, h3, .font-display {
@@ -37,6 +49,50 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
+}
+
+@keyframes fogDriftA {
+  0%, 100% {
+    transform: translate3d(0px, 0px, 0px);
+  }
+  50% {
+    transform: translate3d(6px, -2px, 0px);
+  }
+}
+
+@keyframes fogDriftB {
+  0%, 100% {
+    transform: translate3d(0px, 0px, 0px);
+  }
+  50% {
+    transform: translate3d(-5px, 2px, 0px);
+  }
+}
+
+.animate-fog-drift-a {
+  animation: fogDriftA 9s ease-in-out infinite;
+}
+
+.animate-fog-drift-b {
+  animation: fogDriftB 11.5s ease-in-out 1.5s infinite;
+}
+
+/* Prevent iPadOS/iOS Safari from auto-zooming on input/select focus */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Subtle horizontal scroll container without heavy scrollbars on iPad */
+.ipad-scroll-strip {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.ipad-scroll-strip::-webkit-scrollbar {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

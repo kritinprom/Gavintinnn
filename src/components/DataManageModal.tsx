@@ -1,12 +1,19 @@
 import React, { useState } from 'react';
-import { Download, RotateCcw, Upload, X } from 'lucide-react';
+import { Download, Lock, RotateCcw, Unlock, Upload, X } from 'lucide-react';
 import { PlotStatus, PlotUnit } from '../types/project';
 import { plotsToCSV } from '../utils/formatters';
+import {
+  playCancelSound,
+  playLockedSound,
+  playSuccessSound,
+} from '../utils/soundEffects';
 
 interface DataManageModalProps {
   isOpen: boolean;
   onClose: () => void;
   plots: PlotUnit[];
+  soldUnlocked: boolean;
+  onRequestUnlock: () => void;
   onBulkMerge: (updates: Record<string, Partial<PlotUnit>>) => number;
   onResetAll: () => void;
 }
@@ -15,6 +22,8 @@ export function DataManageModal({
   isOpen,
   onClose,
   plots,
+  soldUnlocked,
+  onRequestUnlock,
   onBulkMerge,
   onResetAll,
 }: DataManageModalProps) {
@@ -25,6 +34,7 @@ export function DataManageModal({
   if (!isOpen) return null;
 
   const handleDownloadCSV = () => {
+    playSuccessSound();
     const csv = plotsToCSV(plots);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -66,6 +76,7 @@ export function DataManageModal({
           cols[6] === 'available' ||
           cols[6] === 'showhouse' ||
           cols[6] === 'reserved' ||
+          cols[6] === 'not_open' ||
           cols[6] === 'sold'
         ) {
           patch.status = cols[6] as PlotStatus;
@@ -84,6 +95,7 @@ export function DataManageModal({
           cols[3] === 'available' ||
           cols[3] === 'showhouse' ||
           cols[3] === 'reserved' ||
+          cols[3] === 'not_open' ||
           cols[3] === 'sold'
         ) {
           patch.status = cols[3] as PlotStatus;
@@ -94,10 +106,18 @@ export function DataManageModal({
 
     const count = onBulkMerge(updates);
     if (count > 0) {
-      setFeedback(`อัปเดตข้อมูลสำเร็จจำนวน ${count} แปลง (บันทึกลงเบราว์เซอร์แล้ว)`);
+      setFeedback(
+        soldUnlocked
+          ? `อัปเดตข้อมูลสำเร็จจำนวน ${count} แปลง (รวมแปลงที่ปลดล็อกแล้ว)`
+          : `อัปเดตข้อมูลสำเร็จจำนวน ${count} แปลง (แปลงที่ขายแล้วจะถูกล็อกข้ามอัตโนมัติ)`
+      );
       setCsvText('');
     } else {
-      setFeedback('ไม่พบรหัสแปลงที่ตรงกัน กรุณาตรวจสอบรูปแบบข้อมูล');
+      setFeedback(
+        soldUnlocked
+          ? 'ไม่พบรหัสแปลงที่ตรงกัน กรุณาตรวจสอบรูปแบบข้อมูล'
+          : 'ไม่พบรหัสแปลงที่แก้ไขได้ (กรุณาตรวจสอบรูปแบบ หรือแปลงที่ระบุขายแล้วและถูกล็อก)'
+      );
     }
   };
 
@@ -115,14 +135,14 @@ export function DataManageModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-[#2B1822]/40 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#1C2621]/40 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-[#FFFCF9] border border-[#EBDCD2] rounded-2xl w-full max-w-xl overflow-hidden shadow-xl"
+        className="bg-[#FFFEFC] border border-[#E3DCD0] rounded-2xl w-full max-w-xl max-h-[88dvh] overflow-y-auto shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-[#EFE3DC] bg-white/70 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[#ECE6DB] bg-white/80 sticky top-0 z-10 backdrop-blur-sm flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-zinc-900 font-display">
               จัดการข้อมูลบ้านเลขที่และราคา
@@ -133,9 +153,10 @@ export function DataManageModal({
           </div>
           <button
             type="button"
+            data-sound="custom"
             onClick={onClose}
             aria-label="ปิดหน้าต่าง"
-            className="p-1.5 text-zinc-400 hover:text-zinc-800 rounded-md hover:bg-stone-100 cursor-pointer"
+            className="w-11 h-11 inline-flex items-center justify-center text-zinc-400 hover:text-zinc-800 rounded-xl hover:bg-stone-100 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -158,8 +179,9 @@ export function DataManageModal({
             </div>
             <button
               type="button"
+              data-sound="custom"
               onClick={handleDownloadCSV}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-[#7A224F] hover:bg-[#5E183C] rounded-xl whitespace-nowrap shrink-0 cursor-pointer"
+              className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-[#164A37] hover:bg-[#0F3527] rounded-xl whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               ดาวน์โหลด CSV
@@ -167,12 +189,12 @@ export function DataManageModal({
           </div>
 
           {/* Import Section */}
-          <div className="space-y-2.5 pb-5 border-b border-[#EFE3DC]">
+          <div className="space-y-2.5 pb-5 border-b border-[#ECE6DB]">
             <div className="flex items-center justify-between gap-2">
               <div className="text-sm font-semibold text-zinc-900">
                 2. นำเข้า / อัปเดตบ้านเลขที่และราคาจาก CSV
               </div>
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-700 bg-[#FAF5F1] hover:bg-[#F3E6DE] border border-[#EDE0D8] rounded-xl cursor-pointer">
+              <label className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-zinc-700 bg-[#F3EFE8] hover:bg-[#E9E3D8] border border-[#E3DCD0] rounded-xl cursor-pointer">
                 <Upload className="w-3.5 h-3.5" />
                 เลือกไฟล์ .csv
                 <input
@@ -184,21 +206,47 @@ export function DataManageModal({
               </label>
             </div>
             <p className="text-xs text-zinc-500">
-              วางข้อมูลรูปแบบ <code className="font-mono-tabular bg-[#FAF5F1] px-1 rounded">รหัสแปลง, บ้านเลขที่, ราคา(บาท), สถานะ</code> เช่น <code className="font-mono-tabular bg-[#FAF5F1] px-1 rounded">A01, 9/1, 12463837, available</code>
+              วางข้อมูลรูปแบบ <code className="font-mono-tabular bg-[#F3EFE8] px-1 rounded">รหัสแปลง, บ้านเลขที่, ราคา(บาท), สถานะ</code> เช่น <code className="font-mono-tabular bg-[#F3EFE8] px-1 rounded">A01, 9/1, 12463837, available</code> (สถานะ: <code className="font-mono-tabular bg-[#F3EFE8] px-1 rounded">available</code>, <code className="font-mono-tabular bg-[#F3EFE8] px-1 rounded">showhouse</code>, <code className="font-mono-tabular bg-[#F3EFE8] px-1 rounded">reserved</code>, <code className="font-mono-tabular bg-[#F3EFE8] px-1 rounded">not_open</code>, <code className="font-mono-tabular bg-[#F3EFE8] px-1 rounded">sold</code>)
             </p>
+            <div className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-[11px] font-medium ${
+              soldUnlocked
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50/70 border-red-200 text-red-700'
+            }`}>
+              <span className="inline-flex items-center gap-1.5">
+                {soldUnlocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                {soldUnlocked
+                  ? 'ปลดล็อกแปลงที่ขายแล้วอยู่ — สามารถนำเข้าแก้ไขทุกแปลงได้'
+                  : 'แปลงที่ขายแล้วถูกล็อกไม่ให้เขียนทับ'}
+              </span>
+              {!soldUnlocked && (
+                <button
+                  type="button"
+                  data-sound="custom"
+                  onClick={() => {
+                    playLockedSound();
+                    onRequestUnlock();
+                  }}
+                  className="min-h-[36px] px-2 underline font-semibold hover:text-red-900 cursor-pointer whitespace-nowrap"
+                >
+                  ใส่รหัสปลดล็อก
+                </button>
+              )}
+            </div>
             <textarea
               rows={4}
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
               placeholder={'A01, 9/1, 12463837, available\nA02, 9/2, 11138474, reserved'}
-              className="w-full p-3 text-xs font-mono-tabular bg-[#FAF5F1] border border-[#E5D5CC] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7A224F]/30"
+              className="w-full p-3 text-xs font-mono-tabular bg-[#F3EFE8] border border-[#DDD5C7] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#164A37]/30"
             />
             <div className="flex justify-end">
               <button
                 type="button"
+                data-sound="custom"
                 disabled={!csvText.trim()}
                 onClick={() => handleImportCSV(csvText)}
-                className="px-4 py-2 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                className="min-h-[44px] px-4 py-2 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-xl disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
               >
                 อัปเดตข้อมูลจากข้อความ
               </button>
@@ -226,6 +274,7 @@ export function DataManageModal({
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
+                  data-sound="custom"
                   onClick={() => {
                     onResetAll();
                     setConfirmReset(false);
@@ -237,7 +286,11 @@ export function DataManageModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setConfirmReset(false)}
+                  data-sound="custom"
+                  onClick={() => {
+                    playCancelSound();
+                    setConfirmReset(false);
+                  }}
                   className="px-3 py-1.5 text-xs text-zinc-600 hover:bg-stone-100 rounded-md cursor-pointer"
                 >
                   ยกเลิก

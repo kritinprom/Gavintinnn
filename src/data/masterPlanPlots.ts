@@ -359,6 +359,32 @@ function computeEstimatedPrice(seed: RawPlotSeed, model: HouseModelId): number {
   return Math.round(raw / 10000) * 10000;
 }
 
+// Plots N01 through K11 (K11–K17, L01–L07, M01–M07, N01) are not yet open for sale
+const DEFAULT_NOT_OPEN_IDS = new Set([
+  'K11',
+  'K12',
+  'K13',
+  'K14',
+  'K15',
+  'K16',
+  'K17',
+  'L01',
+  'L02',
+  'L03',
+  'L04',
+  'L05',
+  'L06',
+  'L07',
+  'M01',
+  'M02',
+  'M03',
+  'M04',
+  'M05',
+  'M06',
+  'M07',
+  'N01',
+]);
+
 export const DEFAULT_PLOTS: PlotUnit[] = RAW_PLOTS.map((seed, index) => {
   const official = OFFICIAL_PRICE_SHEET[seed.id];
   const resolvedModel = official ? official.model : seed.model;
@@ -366,11 +392,13 @@ export const DEFAULT_PLOTS: PlotUnit[] = RAW_PLOTS.map((seed, index) => {
   const price = official
     ? official.minLc + official.totalPro
     : computeEstimatedPrice(seed, resolvedModel);
-  const status: PlotStatus = official
-    ? official.isShowHouse
-      ? 'showhouse'
-      : 'available'
-    : 'sold';
+  const status: PlotStatus = DEFAULT_NOT_OPEN_IDS.has(seed.id)
+    ? 'not_open'
+    : official
+      ? official.isShowHouse
+        ? 'showhouse'
+        : 'available'
+      : 'sold';
 
   const noteParts: string[] = [];
   if (official?.isShowHouse) noteParts.push('บ้านตัวอย่าง');

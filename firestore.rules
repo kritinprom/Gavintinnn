@@ -1,0 +1,348 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'kritin.prom@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidPlotId(id) {
+      return id is string && id.size() == 3 && id.matches('^[A-N][0-9]{2}$');
+    }
+
+    function isValidPrefId(id) {
+      return id is string && id == 'workspace';
+    }
+
+    function isValidCaseId(id) {
+      return id is string && id.size() >= 3 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidPlotOverride(data, plotId) {
+      return data.keys().hasAll(['plotId', 'houseNumber', 'price', 'status', 'note', 'updatedAt', 'updatedBy']) &&
+        data.keys().hasOnly(['plotId', 'houseNumber', 'price', 'status', 'note', 'updatedAt', 'updatedBy']) &&
+        data.plotId is string &&
+        data.plotId == plotId &&
+        data.houseNumber is string &&
+        data.houseNumber.size() >= 3 &&
+        data.houseNumber.size() <= 32 &&
+        data.houseNumber.matches('^9/[0-9A-Za-z\\-/]+$') &&
+        data.price is number &&
+        data.price > 0 &&
+        data.price <= 200000000 &&
+        data.status in ['available', 'showhouse', 'reserved', 'sold', 'not_open'] &&
+        data.note is string &&
+        data.note.size() <= 300 &&
+        data.updatedAt == request.time &&
+        data.updatedBy is string &&
+        data.updatedBy.size() > 0 &&
+        data.updatedBy.size() <= 128 &&
+        data.updatedBy == request.auth.uid;
+    }
+
+    function isValidUserWorkspace(data, userId) {
+      return data.keys().hasAll(['ownerId', 'bookmarkedIds', 'soundEnabled', 'overlayMode', 'activeTab', 'updatedAt']) &&
+        data.keys().hasOnly(['ownerId', 'bookmarkedIds', 'soundEnabled', 'overlayMode', 'activeTab', 'selectedPlotId', 'updatedAt']) &&
+        data.ownerId is string &&
+        data.ownerId == userId &&
+        data.bookmarkedIds is list &&
+        data.bookmarkedIds.size() <= 4 &&
+        (data.bookmarkedIds.size() == 0 || (data.bookmarkedIds[0] is string && data.bookmarkedIds[0].size() == 3)) &&
+        data.soundEnabled is bool &&
+        data.overlayMode in ['plot', 'houseNumber', 'price', 'status'] &&
+        data.activeTab in ['plan', 'directory', 'models', 'compare', 'loans'] &&
+        (!data.keys().hasAny(['selectedPlotId']) || (data.selectedPlotId is string && data.selectedPlotId.size() <= 8)) &&
+        data.updatedAt == request.time;
+    }
+
+    function isValidBankEntry(entry) {
+      return entry is map &&
+        entry.keys().hasAll(['id', 'bankName', 'status', 'approvedAmount', 'note', 'updatedDate']) &&
+        entry.keys().hasOnly(['id', 'bankName', 'status', 'approvedAmount', 'note', 'updatedDate']) &&
+        entry.id is string &&
+        entry.id.size() >= 1 &&
+        entry.id.size() <= 40 &&
+        entry.bankName is string &&
+        entry.bankName.size() >= 1 &&
+        entry.bankName.size() <= 80 &&
+        entry.status in [
+          'waiting_docs',
+          'submitted',
+          'appraisal',
+          'reviewing',
+          'pre_approved',
+          'approved',
+          'contract_ready',
+          'rejected'
+        ] &&
+        entry.approvedAmount is number &&
+        entry.approvedAmount >= 0 &&
+        entry.approvedAmount <= 200000000 &&
+        entry.note is string &&
+        entry.note.size() <= 200 &&
+        entry.updatedDate is string &&
+        entry.updatedDate.size() <= 32;
+    }
+
+    function isValidLoanCase(data, caseId) {
+      return data.keys().hasAll(['caseId', 'ownerId', 'plotId', 'customerName', 'customerPhone', 'customerIdCard', 'overallStatus', 'note', 'banks', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['caseId', 'ownerId', 'plotId', 'customerName', 'customerPhone', 'customerIdCard', 'overallStatus', 'note', 'banks', 'createdAt', 'updatedAt']) &&
+        data.caseId is string &&
+        data.caseId == caseId &&
+        data.ownerId is string &&
+        data.ownerId.size() > 0 &&
+        data.ownerId.size() <= 128 &&
+        isValidPlotId(data.plotId) &&
+        data.customerName is string &&
+        data.customerName.size() >= 1 &&
+        data.customerName.size() <= 100 &&
+        data.customerPhone is string &&
+        data.customerPhone.size() <= 20 &&
+        data.customerIdCard is string &&
+        data.customerIdCard.size() <= 20 &&
+        data.overallStatus in [
+          'preparing',
+          'submitted',
+          'appraisal',
+          'pre_approved',
+          'approved',
+          'transfer_ready',
+          'transferred',
+          'rejected'
+        ] &&
+        data.note is string &&
+        data.note.size() <= 400 &&
+        data.banks is list &&
+        data.banks.size() <= 10 &&
+        (data.banks.size() == 0 || isValidBankEntry(data.banks[0])) &&
+        data.updatedAt == request.time;
+    }
+
+    function isValidLoanPublicStatus(data, caseId) {
+      return data.keys().hasAll([
+          'caseId',
+          'ownerId',
+          'plotId',
+          'houseNumber',
+          'modelName',
+          'maskedName',
+          'namePrefix3',
+          'maskedPhone',
+          'phoneLast4',
+          'phoneHash',
+          'idCardHash',
+          'overallStatus',
+          'note',
+          'banks',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'caseId',
+          'ownerId',
+          'plotId',
+          'houseNumber',
+          'modelName',
+          'maskedName',
+          'namePrefix3',
+          'maskedPhone',
+          'phoneLast4',
+          'phoneHash',
+          'idCardHash',
+          'overallStatus',
+          'note',
+          'banks',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.caseId is string &&
+        data.caseId == caseId &&
+        data.ownerId is string &&
+        data.ownerId.size() > 0 &&
+        data.ownerId.size() <= 128 &&
+        isValidPlotId(data.plotId) &&
+        data.houseNumber is string &&
+        data.houseNumber.size() >= 3 &&
+        data.houseNumber.size() <= 32 &&
+        data.houseNumber.matches('^9/[0-9A-Za-z\\-/]+$') &&
+        data.modelName is string &&
+        data.modelName.size() <= 40 &&
+        data.maskedName is string &&
+        data.maskedName.size() >= 4 &&
+        data.maskedName.size() <= 24 &&
+        data.maskedName.matches('^.+xxxx$') &&
+        data.namePrefix3 is string &&
+        data.namePrefix3.size() >= 1 &&
+        data.namePrefix3.size() <= 16 &&
+        data.maskedPhone is string &&
+        data.maskedPhone.size() <= 20 &&
+        data.phoneLast4 is string &&
+        data.phoneLast4.size() <= 4 &&
+        data.phoneHash is string &&
+        data.phoneHash.size() <= 64 &&
+        data.idCardHash is string &&
+        data.idCardHash.size() <= 64 &&
+        data.overallStatus in [
+          'preparing',
+          'submitted',
+          'appraisal',
+          'pre_approved',
+          'approved',
+          'transfer_ready',
+          'transferred',
+          'rejected'
+        ] &&
+        data.note is string &&
+        data.note.size() <= 400 &&
+        data.banks is list &&
+        data.banks.size() <= 10 &&
+        (data.banks.size() == 0 || isValidBankEntry(data.banks[0])) &&
+        data.updatedAt == request.time;
+    }
+
+    // Connectivity health check document
+    match /test/{docId} {
+      allow get: if isSignedIn() && docId == 'connection';
+    }
+
+    // Admin lookup collection (read own record only; never client-writable)
+    match /admins/{userId} {
+      allow get: if isOwner(userId);
+      allow list, create, update, delete: if false;
+    }
+
+    // Real-time synchronized plot state overrides (non-PII project catalog data)
+    match /plot_overrides/{plotId} {
+      allow get: if isVerifiedUser() && isValidPlotId(plotId);
+      allow list: if isVerifiedUser() && resource.data.plotId is string;
+
+      allow create: if isVerifiedUser() &&
+        isValidPlotId(plotId) &&
+        isValidPlotOverride(incoming(), plotId);
+
+      allow update: if isVerifiedUser() &&
+        isValidPlotId(plotId) &&
+        isValidPlotOverride(incoming(), plotId) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['houseNumber', 'price', 'status', 'note', 'updatedAt', 'updatedBy']) &&
+        (isAdmin() || existing().status != 'sold');
+
+      allow delete: if isVerifiedUser() &&
+        isValidPlotId(plotId) &&
+        (isAdmin() || existing().status != 'sold');
+    }
+
+    // Per-user real-time workspace preferences & comparison bookmarks
+    match /users/{userId}/preferences/{prefId} {
+      allow get: if isOwner(userId) && isValidPrefId(prefId);
+      allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isOwner(userId) &&
+        isValidPrefId(prefId) &&
+        isValidUserWorkspace(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+        isValidPrefId(prefId) &&
+        isValidUserWorkspace(incoming(), userId) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['bookmarkedIds', 'soundEnabled', 'overlayMode', 'activeTab', 'selectedPlotId', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidPrefId(prefId);
+    }
+
+    // Staff-only customer mortgage application & bank-by-bank status tracking (contains full name, phone & national ID PII)
+    match /loan_cases/{caseId} {
+      allow get: if isVerifiedUser() &&
+        isValidCaseId(caseId) &&
+        (isAdmin() || existing().ownerId == request.auth.uid);
+
+      allow list: if isVerifiedUser() &&
+        (isAdmin() || resource.data.ownerId == request.auth.uid);
+
+      allow create: if isVerifiedUser() &&
+        isValidCaseId(caseId) &&
+        isValidLoanCase(incoming(), caseId) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidCaseId(caseId) &&
+        isValidLoanCase(incoming(), caseId) &&
+        (isAdmin() || existing().ownerId == request.auth.uid) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().caseId == existing().caseId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['plotId', 'customerName', 'customerPhone', 'customerIdCard', 'overallStatus', 'note', 'banks', 'updatedAt']);
+
+      allow delete: if isVerifiedUser() &&
+        isValidCaseId(caseId) &&
+        (isAdmin() || existing().ownerId == request.auth.uid);
+    }
+
+    // Zero-PII customer search lookup collection (only masked name 3chars+xxxx, phone hash/last4, idCardHash, bank status; no project prices)
+    match /loan_public_status/{caseId} {
+      allow get: if isValidCaseId(caseId);
+      allow list: if resource.data.caseId is string;
+
+      allow create: if isVerifiedUser() &&
+        isValidCaseId(caseId) &&
+        isValidLoanPublicStatus(incoming(), caseId) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidCaseId(caseId) &&
+        isValidLoanPublicStatus(incoming(), caseId) &&
+        (isAdmin() || existing().ownerId == request.auth.uid) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().caseId == existing().caseId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'plotId',
+          'houseNumber',
+          'modelName',
+          'maskedName',
+          'namePrefix3',
+          'maskedPhone',
+          'phoneLast4',
+          'phoneHash',
+          'idCardHash',
+          'overallStatus',
+          'note',
+          'banks',
+          'updatedAt'
+        ]);
+
+      allow delete: if isVerifiedUser() &&
+        isValidCaseId(caseId) &&
+        (isAdmin() || existing().ownerId == request.auth.uid);
+    }
+  }
+}

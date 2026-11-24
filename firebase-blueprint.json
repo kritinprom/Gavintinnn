@@ -1,0 +1,329 @@
+{
+  "entities": {
+    "PlotOverride": {
+      "title": "PlotOverride",
+      "description": "Real-time updated state for an individual house plot (status, house number, price, note).",
+      "type": "object",
+      "properties": {
+        "plotId": {
+          "type": "string",
+          "description": "Plot identifier such as A01 through N10",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-N][0-9]{2}$"
+        },
+        "houseNumber": {
+          "type": "string",
+          "description": "House address starting with 9/",
+          "minLength": 3,
+          "maxLength": 32,
+          "pattern": "^9/[0-9A-Za-z\\-/]+$"
+        },
+        "price": {
+          "type": "number",
+          "description": "Total selling price in THB"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current availability status of the plot",
+          "enum": ["available", "showhouse", "reserved", "sold", "not_open"]
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional plot remarks or highlights",
+          "maxLength": 300
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest update"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "UID of the verified user who last updated this plot",
+          "maxLength": 128
+        }
+      },
+      "required": ["plotId", "houseNumber", "price", "status", "note", "updatedAt", "updatedBy"]
+    },
+    "UserWorkspace": {
+      "title": "UserWorkspace",
+      "description": "Real-time saved workspace preferences and comparison bookmarks for a signed-in user.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID",
+          "maxLength": 128
+        },
+        "bookmarkedIds": {
+          "type": "array",
+          "description": "Up to 4 bookmarked plot IDs for comparison"
+        },
+        "soundEnabled": {
+          "type": "boolean",
+          "description": "Whether UI click sound effects are enabled"
+        },
+        "overlayMode": {
+          "type": "string",
+          "description": "Master plan pin display mode",
+          "enum": ["plot", "houseNumber", "price", "status"]
+        },
+        "activeTab": {
+          "type": "string",
+          "description": "Currently active workspace tab",
+          "enum": ["plan", "directory", "models", "compare", "loans"]
+        },
+        "selectedPlotId": {
+          "type": "string",
+          "description": "Currently selected plot ID on the master plan",
+          "maxLength": 8
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest preference update"
+        }
+      },
+      "required": ["ownerId", "bookmarkedIds", "soundEnabled", "overlayMode", "activeTab", "updatedAt"]
+    },
+    "LoanCase": {
+      "title": "LoanCase",
+      "description": "Staff-only customer mortgage application tracking record containing full customer name, phone number, plot ID, overall status, and submitted banks list.",
+      "type": "object",
+      "properties": {
+        "caseId": {
+          "type": "string",
+          "description": "Unique loan case document identifier",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Creator Firebase Auth UID",
+          "maxLength": 128
+        },
+        "plotId": {
+          "type": "string",
+          "description": "Target plot identifier A01-N10",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-N][0-9]{2}$"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Full customer name (private to staff/owner)",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Customer phone number (private to staff/owner)",
+          "maxLength": 20
+        },
+        "customerIdCard": {
+          "type": "string",
+          "description": "Customer 13-digit National ID card number used as lookup passcode (private to staff/owner)",
+          "maxLength": 20
+        },
+        "overallStatus": {
+          "type": "string",
+          "description": "Overall mortgage progress stage",
+          "enum": [
+            "preparing",
+            "submitted",
+            "appraisal",
+            "pre_approved",
+            "approved",
+            "transfer_ready",
+            "transferred",
+            "rejected"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "description": "Additional summary remarks for customer",
+          "maxLength": 400
+        },
+        "banks": {
+          "type": "array",
+          "description": "Up to 10 submitted bank loan applications with individual status"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when record was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest status update"
+        }
+      },
+      "required": [
+        "caseId",
+        "ownerId",
+        "plotId",
+        "customerName",
+        "customerPhone",
+        "customerIdCard",
+        "overallStatus",
+        "note",
+        "banks",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LoanPublicStatus": {
+      "title": "LoanPublicStatus",
+      "description": "Zero-PII customer-facing lookup record with masked customer name (first 3 chars + xxxx), masked phone / SHA-256 phone hash, SHA-256 National ID hash, and bank statuses without project pricing.",
+      "type": "object",
+      "properties": {
+        "caseId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "plotId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-N][0-9]{2}$"
+        },
+        "houseNumber": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 32,
+          "pattern": "^9/[0-9A-Za-z\\-/]+$"
+        },
+        "modelName": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "maskedName": {
+          "type": "string",
+          "description": "Masked customer display name (first 3 chars + xxxx)",
+          "minLength": 4,
+          "maxLength": 24
+        },
+        "namePrefix3": {
+          "type": "string",
+          "description": "Lowercased 3-character prefix used for customer search lookup",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "maskedPhone": {
+          "type": "string",
+          "description": "Masked phone number e.g. 08x-xxx-5678",
+          "maxLength": 20
+        },
+        "phoneLast4": {
+          "type": "string",
+          "description": "Last 4 digits of phone number for lookup",
+          "maxLength": 4
+        },
+        "phoneHash": {
+          "type": "string",
+          "description": "SHA-256 hex digest of normalized digits for exact phone lookup",
+          "maxLength": 64
+        },
+        "idCardHash": {
+          "type": "string",
+          "description": "Domain-separated SHA-256 hex digest of customer National ID card digits for passcode verification",
+          "maxLength": 64
+        },
+        "overallStatus": {
+          "type": "string",
+          "enum": [
+            "preparing",
+            "submitted",
+            "appraisal",
+            "pre_approved",
+            "approved",
+            "transfer_ready",
+            "transferred",
+            "rejected"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "banks": {
+          "type": "array",
+          "description": "Up to 10 submitted bank loan applications with individual status"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "caseId",
+        "ownerId",
+        "plotId",
+        "houseNumber",
+        "modelName",
+        "maskedName",
+        "namePrefix3",
+        "maskedPhone",
+        "phoneLast4",
+        "phoneHash",
+        "idCardHash",
+        "overallStatus",
+        "note",
+        "banks",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized admin record granting override permissions on locked sold plots.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"]
+        }
+      },
+      "required": ["uid", "role"]
+    }
+  },
+  "firestore": {
+    "/plot_overrides/{plotId}": {
+      "schema": { "$ref": "#/entities/PlotOverride" },
+      "description": "Real-time synchronized overrides for each house plot in CENTRO Rama 2 - Phutthabucha 2."
+    },
+    "/loan_cases/{caseId}": {
+      "schema": { "$ref": "#/entities/LoanCase" },
+      "description": "Staff-private customer mortgage application records containing full name and phone."
+    },
+    "/loan_public_status/{caseId}": {
+      "schema": { "$ref": "#/entities/LoanPublicStatus" },
+      "description": "Zero-PII customer search lookup collection exposing only 3-char masked names and hashed/last-4 phone lookups without project pricing."
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": { "$ref": "#/entities/UserWorkspace" },
+      "description": "Per-user saved comparison bookmarks and workspace state synced in real time."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Admin directory for unlocking or correcting sold plots."
+    }
+  }
+}
