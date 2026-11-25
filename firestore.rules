@@ -271,8 +271,18 @@ service cloud.firestore {
       allow update: if isOwner(userId) &&
         isValidPrefId(prefId) &&
         isValidUserWorkspace(incoming(), userId) &&
-        incoming().ownerId == existing().ownerId &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['bookmarkedIds', 'soundEnabled', 'overlayMode', 'activeTab', 'selectedPlotId', 'updatedAt']);
+        (
+          (
+            existing().keys().hasAny(['ownerId']) &&
+            incoming().ownerId == existing().ownerId &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['bookmarkedIds', 'soundEnabled', 'overlayMode', 'activeTab', 'selectedPlotId', 'updatedAt'])
+          ) ||
+          (
+            !existing().keys().hasAny(['ownerId']) &&
+            incoming().ownerId == userId &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['ownerId', 'bookmarkedIds', 'soundEnabled', 'overlayMode', 'activeTab', 'selectedPlotId', 'updatedAt'])
+          )
+        );
 
       allow delete: if isOwner(userId) && isValidPrefId(prefId);
     }
@@ -295,54 +305,91 @@ service cloud.firestore {
       allow update: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
         isValidLoanCase(incoming(), caseId) &&
-        (isAdmin() || existing().ownerId == request.auth.uid) &&
-        incoming().ownerId == existing().ownerId &&
-        incoming().caseId == existing().caseId &&
-        incoming().createdAt == existing().createdAt &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['plotId', 'customerName', 'customerPhone', 'customerIdCard', 'overallStatus', 'note', 'banks', 'updatedAt']);
+        (isAdmin() || (existing().keys().hasAny(['ownerId']) && existing().ownerId == request.auth.uid)) && (
+          (
+            incoming().ownerId == existing().ownerId &&
+            incoming().caseId == existing().caseId &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['plotId', 'customerName', 'customerPhone', 'customerIdCard', 'overallStatus', 'note', 'banks', 'updatedAt'])
+          ) ||
+          (
+            isAdmin() &&
+            (!existing().keys().hasAny(['ownerId']) || incoming().ownerId == existing().ownerId) &&
+            (!existing().keys().hasAny(['caseId']) || incoming().caseId == existing().caseId) &&
+            (!existing().keys().hasAny(['createdAt']) ? incoming().createdAt == request.time : incoming().createdAt == existing().createdAt) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['caseId', 'ownerId', 'plotId', 'customerName', 'customerPhone', 'customerIdCard', 'overallStatus', 'note', 'banks', 'createdAt', 'updatedAt'])
+          )
+        );
 
       allow delete: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
-        (isAdmin() || existing().ownerId == request.auth.uid);
+        (isAdmin() || (existing().keys().hasAny(['ownerId']) && existing().ownerId == request.auth.uid));
     }
 
     // Zero-PII customer search lookup collection (only masked name 3chars+xxxx, phone hash/last4, idCardHash, bank status; no project prices)
     match /loan_public_status/{caseId} {
       allow get: if isValidCaseId(caseId);
-      allow list: if resource.data.caseId is string;
+      allow list: if resource.data.caseId is string || resource.data.plotId is string;
 
       allow create: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
         isValidLoanPublicStatus(incoming(), caseId) &&
-        incoming().ownerId == request.auth.uid &&
+        (incoming().ownerId == request.auth.uid || isAdmin()) &&
         incoming().createdAt == request.time;
 
       allow update: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
         isValidLoanPublicStatus(incoming(), caseId) &&
-        (isAdmin() || existing().ownerId == request.auth.uid) &&
-        incoming().ownerId == existing().ownerId &&
-        incoming().caseId == existing().caseId &&
-        incoming().createdAt == existing().createdAt &&
-        incoming().diff(existing()).affectedKeys().hasOnly([
-          'plotId',
-          'houseNumber',
-          'modelName',
-          'maskedName',
-          'namePrefix3',
-          'maskedPhone',
-          'phoneLast4',
-          'phoneHash',
-          'idCardHash',
-          'overallStatus',
-          'note',
-          'banks',
-          'updatedAt'
-        ]);
+        (isAdmin() || (existing().keys().hasAny(['ownerId']) && existing().ownerId == request.auth.uid)) && (
+          (
+            incoming().ownerId == existing().ownerId &&
+            incoming().caseId == existing().caseId &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'plotId',
+              'houseNumber',
+              'modelName',
+              'maskedName',
+              'namePrefix3',
+              'maskedPhone',
+              'phoneLast4',
+              'phoneHash',
+              'idCardHash',
+              'overallStatus',
+              'note',
+              'banks',
+              'updatedAt'
+            ])
+          ) ||
+          (
+            isAdmin() &&
+            (!existing().keys().hasAny(['ownerId']) || incoming().ownerId == existing().ownerId) &&
+            (!existing().keys().hasAny(['caseId']) || incoming().caseId == existing().caseId) &&
+            (!existing().keys().hasAny(['createdAt']) ? incoming().createdAt == request.time : incoming().createdAt == existing().createdAt) &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'caseId',
+              'ownerId',
+              'plotId',
+              'houseNumber',
+              'modelName',
+              'maskedName',
+              'namePrefix3',
+              'maskedPhone',
+              'phoneLast4',
+              'phoneHash',
+              'idCardHash',
+              'overallStatus',
+              'note',
+              'banks',
+              'createdAt',
+              'updatedAt'
+            ])
+          )
+        );
 
       allow delete: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
-        (isAdmin() || existing().ownerId == request.auth.uid);
+        (isAdmin() || (existing().keys().hasAny(['ownerId']) && existing().ownerId == request.auth.uid));
     }
   }
 }

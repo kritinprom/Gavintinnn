@@ -13,6 +13,7 @@ import {
   getDocs,
   getFirestore,
   limit,
+  onSnapshot,
   query,
   serverTimestamp,
   where,
@@ -47,6 +48,18 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export function getDatabaseStorageInfo() {
+  return {
+    projectId: firebaseConfig.projectId,
+    databaseId: firebaseConfig.firestoreDatabaseId || '(default)',
+    collections: {
+      customerPrivate: 'loan_cases',
+      customerPublic: 'loan_public_status',
+      plotOverrides: 'plot_overrides',
+    },
+  };
+}
 
 export async function testConnection(): Promise<void> {
   try {
@@ -227,21 +240,27 @@ export function buildUserWorkspacePayload(params: {
   return payload;
 }
 
-export function sanitizeBankEntries(entries: BankApplicationEntry[]): BankApplicationEntry[] {
+export function sanitizeBankEntries(entries: unknown): BankApplicationEntry[] {
+  if (!Array.isArray(entries)) return [];
   return entries
     .slice(0, 10)
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === 'object'))
     .map((entry, idx) => {
-      const safeId = (entry.id || `bank_${idx + 1}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || `bank_${idx + 1}`;
-      const safeBankName = (entry.bankName || '').trim().slice(0, 80);
-      const safeStatus: BankApplicationStatus = VALID_BANK_STATUSES.includes(entry.status)
-        ? entry.status
+      const rawId = typeof entry.id === 'string' ? entry.id : `bank_${idx + 1}`;
+      const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || `bank_${idx + 1}`;
+      const safeBankName = typeof entry.bankName === 'string' ? entry.bankName.trim().slice(0, 80) : '';
+      const rawStatus = entry.status as BankApplicationStatus;
+      const safeStatus: BankApplicationStatus = VALID_BANK_STATUSES.includes(rawStatus)
+        ? rawStatus
         : 'submitted';
+      const numericAmount = Number(entry.approvedAmount);
       const safeAmount =
-        Number.isFinite(entry.approvedAmount) && entry.approvedAmount >= 0
-          ? Math.min(200000000, Math.round(entry.approvedAmount))
+        Number.isFinite(numericAmount) && numericAmount >= 0
+          ? Math.min(200000000, Math.round(numericAmount))
           : 0;
-      const safeNote = (entry.note || '').trim().slice(0, 200);
-      const safeDate = (entry.updatedDate || '').trim().slice(0, 32);
+      const safeNote = typeof entry.note === 'string' ? entry.note.trim().slice(0, 200) : '';
+      const safeDate =
+        typeof entry.updatedDate === 'string' ? entry.updatedDate.trim().slice(0, 32) : '';
       return {
         id: safeId,
         bankName: safeBankName,
@@ -254,29 +273,48 @@ export function sanitizeBankEntries(entries: BankApplicationEntry[]): BankApplic
     .filter((entry) => entry.bankName.length > 0);
 }
 
-export function sanitizeLoanCase(raw: LoanCase): LoanCase {
-  const safeCaseId = CASE_ID_RE.test(raw.caseId)
-    ? raw.caseId
-    : `case_${Date.now()}`;
-  const safePlotId = PLOT_ID_RE.test(raw.plotId) ? raw.plotId : 'A01';
-  const safeCustomerName = (raw.customerName || '').trim().slice(0, 100) || 'ลูกค้าโครงการ';
-  const safeCustomerPhone = normalizePhoneDigits(raw.customerPhone || '').slice(0, 20);
-  const safeCustomerIdCard = normalizeIdCardDigits(raw.customerIdCard || '').slice(0, 20);
-  const safeStatus: LoanOverallStatus = VALID_LOAN_OVERALL_STATUSES.includes(raw.overallStatus)
-    ? raw.overallStatus
+export function sanitizeLoanCase(rawInput: unknown): LoanCase {
+  const raw =
+    rawInput && typeof rawInput === 'object'
+      ? (rawInput as Partial<LoanCase>)
+      : ({} as Partial<LoanCase>);
+
+  const rawCaseId = typeof raw.caseId === 'string' ? raw.caseId : '';
+  const safeCaseId = CASE_ID_RE.test(rawCaseId)
+    ? rawCaseId
+    : `case_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const rawPlotId = typeof raw.plotId === 'string' ? raw.plotId : '';
+  const safePlotId = PLOT_ID_RE.test(rawPlotId) ? rawPlotId : 'A01';
+  const safeCustomerName =
+    typeof raw.customerName === 'string' && raw.customerName.trim()
+      ? raw.customerName.trim().slice(0, 100)
+      : 'ลูกค้าโครงการ';
+  const safeCustomerPhone = normalizePhoneDigits(
+    typeof raw.customerPhone === 'string' ? raw.customerPhone : ''
+  ).slice(0, 20);
+  const safeCustomerIdCard = normalizeIdCardDigits(
+    typeof raw.customerIdCard === 'string' ? raw.customerIdCard : ''
+  ).slice(0, 20);
+  const safeStatus: LoanOverallStatus = VALID_LOAN_OVERALL_STATUSES.includes(
+    raw.overallStatus as LoanOverallStatus
+  )
+    ? (raw.overallStatus as LoanOverallStatus)
     : 'preparing';
 
   return {
     caseId: safeCaseId,
-    ownerId: raw.ownerId,
+    ownerId: typeof raw.ownerId === 'string' ? raw.ownerId : undefined,
     plotId: safePlotId,
     customerName: safeCustomerName,
     customerPhone: safeCustomerPhone,
     customerIdCard: safeCustomerIdCard,
     overallStatus: safeStatus,
-    note: (raw.note || '').trim().slice(0, 400),
-    banks: sanitizeBankEntries(Array.isArray(raw.banks) ? raw.banks : []),
-    updatedAtMs: raw.updatedAtMs ?? Date.now(),
+    note: typeof raw.note === 'string' ? raw.note.trim().slice(0, 400) : '',
+    banks: sanitizeBankEntries(raw.banks),
+    updatedAtMs:
+      typeof raw.updatedAtMs === 'number' && Number.isFinite(raw.updatedAtMs)
+        ? raw.updatedAtMs
+        : Date.now(),
   };
 }
 
@@ -300,9 +338,13 @@ export function buildLoanCaseCreatePayload(
   };
 }
 
-export function buildLoanCaseUpdatePayload(loanCase: LoanCase) {
+export function buildLoanCaseUpdatePayload(
+  loanCase: LoanCase,
+  existingData?: Record<string, unknown>,
+  uid?: string
+) {
   const safe = sanitizeLoanCase(loanCase);
-  return {
+  const payload: Record<string, unknown> = {
     plotId: safe.plotId,
     customerName: safe.customerName,
     customerPhone: safe.customerPhone,
@@ -312,6 +354,18 @@ export function buildLoanCaseUpdatePayload(loanCase: LoanCase) {
     banks: safe.banks,
     updatedAt: serverTimestamp(),
   };
+  if (existingData) {
+    if (typeof existingData.caseId !== 'string') {
+      payload.caseId = safe.caseId;
+    }
+    if (typeof existingData.ownerId !== 'string' && uid) {
+      payload.ownerId = uid.slice(0, 128);
+    }
+    if (!existingData.createdAt) {
+      payload.createdAt = serverTimestamp();
+    }
+  }
+  return payload;
 }
 
 export async function toPublicLoanStatusRecord(
@@ -373,10 +427,12 @@ export async function buildLoanPublicStatusCreatePayload(
 
 export async function buildLoanPublicStatusUpdatePayload(
   loanCase: LoanCase,
-  plot: PlotUnit | undefined
+  plot: PlotUnit | undefined,
+  existingData?: Record<string, unknown>,
+  uid?: string
 ) {
   const pub = await toPublicLoanStatusRecord(loanCase, plot);
-  return {
+  const payload: Record<string, unknown> = {
     plotId: pub.plotId,
     houseNumber: pub.houseNumber,
     modelName: pub.modelName,
@@ -391,6 +447,18 @@ export async function buildLoanPublicStatusUpdatePayload(
     banks: pub.banks,
     updatedAt: serverTimestamp(),
   };
+  if (existingData) {
+    if (typeof existingData.caseId !== 'string') {
+      payload.caseId = pub.caseId;
+    }
+    if (typeof existingData.ownerId !== 'string' && (pub.ownerId || uid)) {
+      payload.ownerId = (pub.ownerId || uid || '').slice(0, 128);
+    }
+    if (!existingData.createdAt) {
+      payload.createdAt = serverTimestamp();
+    }
+  }
+  return payload;
 }
 
 function mapDocToPublicStatus(
@@ -543,3 +611,102 @@ export async function searchPublicLoanStatus(
   return Array.from(resultsMap.values());
 }
 
+/**
+ * Real-time onSnapshot subscription for customer public loan status lookup.
+ * Pushes live status & bank updates automatically without requiring page reload.
+ */
+export function subscribePublicLoanSearch(
+  queryText: string,
+  onResults: (records: LoanPublicStatus[]) => void,
+  onError: (err: unknown) => void
+): () => void {
+  const raw = (queryText || '').trim();
+  if (!raw) {
+    onResults([]);
+    return () => {};
+  }
+
+  let cancelled = false;
+  let unsubSnapshot: (() => void) | null = null;
+  const path = 'loan_public_status';
+  const publicCol = collection(db, path);
+  const digits = normalizePhoneDigits(raw);
+  const isPhoneStyle = /^[0-9+\-\s()]+$/.test(raw) && digits.length >= 4;
+
+  const attachQuery = async () => {
+    try {
+      let targetQuery;
+      if (isPhoneStyle) {
+        if (digits.length >= 9) {
+          const pHash = await hashPhoneForLookup(digits);
+          if (cancelled) return;
+          if (!pHash) {
+            onResults([]);
+            return;
+          }
+          targetQuery = query(publicCol, where('phoneHash', '==', pHash), limit(15));
+        } else {
+          targetQuery = query(
+            publicCol,
+            where('phoneLast4', '==', digits.slice(-4)),
+            limit(15)
+          );
+        }
+      } else {
+        const cleanedName = stripThaiHonorific(raw);
+        const graphemes = splitGraphemes(cleanedName);
+        if (graphemes.length < 2) {
+          onResults([]);
+          return;
+        }
+        const prefix = graphemes.slice(0, 3).join('').toLowerCase();
+        targetQuery = query(
+          publicCol,
+          where('namePrefix3', '>=', prefix),
+          where('namePrefix3', '<=', `${prefix}\uf8ff`),
+          limit(20)
+        );
+      }
+
+      if (cancelled) return;
+
+      unsubSnapshot = onSnapshot(
+        targetQuery,
+        (snapshot) => {
+          if (cancelled) return;
+          const nextMap = new Map<string, LoanPublicStatus>();
+          snapshot.forEach((docSnap) => {
+            const mapped = mapDocToPublicStatus(
+              docSnap.id,
+              docSnap.data() as Record<string, unknown>
+            );
+            if (mapped) nextMap.set(mapped.caseId, mapped);
+          });
+          onResults(Array.from(nextMap.values()));
+        },
+        (error) => {
+          if (cancelled) return;
+          try {
+            handleFirestoreError(error, OperationType.LIST, path);
+          } catch (wrapped) {
+            onError(wrapped);
+          }
+        }
+      );
+    } catch (error) {
+      if (!cancelled) {
+        onError(error);
+      }
+    }
+  };
+
+  void attachQuery();
+
+  return () => {
+    cancelled = true;
+    if (unsubSnapshot) {
+      unsubSnapshot();
+      unsubSnapshot = null;
+    }
+  };
+}

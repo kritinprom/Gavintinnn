@@ -32,7 +32,6 @@ interface HeaderProps {
   compareCount: number;
   soundEnabled: boolean;
   onToggleSound: () => void;
-  musicEnabled: boolean;
   activeMusicLabel: string | null;
   onOpenMusicHub: () => void;
   soldUnlocked: boolean;
@@ -52,7 +51,6 @@ export function Header({
   compareCount,
   soundEnabled,
   onToggleSound,
-  musicEnabled,
   activeMusicLabel,
   onOpenMusicHub,
   soldUnlocked,
@@ -72,7 +70,7 @@ export function Header({
       shortLabel: compareCount > 0 ? `เทียบ (${compareCount})` : 'เทียบ',
       icon: Columns2,
     },
-    { id: 'loans', label: 'จัดการสินเชื่อลูกค้า', shortLabel: 'สินเชื่อ', icon: Landmark },
+    { id: 'loans', label: 'ฐานข้อมูลลูกค้า', shortLabel: 'ลูกค้า', icon: Landmark },
   ];
 
   const handleTabClick = (tab: ActiveTab) => {
@@ -221,17 +219,17 @@ export function Header({
                 playClickSound();
                 onOpenMusicHub();
               }}
-              title="เปิดคลังเพลง (บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · LISA · เพลงบรรเลง 20 เพลง)"
+              title="เปิดคลังเพลงมีคนร้อง (บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · LISA)"
               aria-label="เปิดคลังเพลง"
               className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 min-w-[44px] h-11 text-xs font-medium rounded-xl border transition-colors cursor-pointer shrink-0 active:scale-[0.98] whitespace-nowrap ${
-                activeMusicLabel || musicEnabled
+                activeMusicLabel
                   ? 'bg-[#FBF7EE] border-[#DFC996] text-[#8A6820] hover:bg-[#F5EBD4]'
                   : 'bg-white border-[#E0D9CA] text-zinc-500 hover:text-[#14191F]'
               }`}
             >
               <Music
                 className={`w-4 h-4 ${
-                  activeMusicLabel || musicEnabled ? 'text-[#C59B48]' : 'text-zinc-400'
+                  activeMusicLabel ? 'text-[#C59B48]' : 'text-zinc-400'
                 }`}
               />
               <span className="hidden sm:inline max-w-[125px] truncate">

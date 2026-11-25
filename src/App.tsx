@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowRight,
   ChevronUp,
   Cloud,
@@ -8,7 +9,6 @@ import {
   Landmark,
   Music,
   RefreshCw,
-  SkipForward,
   X,
 } from 'lucide-react';
 import { MotionConfig } from 'motion/react';
@@ -59,6 +59,7 @@ import {
   searchPublicLoanStatus,
   signInWithGoogle,
   signOutUser,
+  subscribePublicLoanSearch,
   toPublicLoanStatusRecord,
 } from './firebase';
 import {
@@ -72,18 +73,6 @@ import {
   PlotUnit,
 } from './types/project';
 import { formatMillion, STATUS_SHORT_LABELS } from './utils/formatters';
-import {
-  ChristmasTrack,
-  getCurrentChristmasTrack,
-  isMusicEnabled,
-  LUXURY_AMBIENT_PLAYLIST,
-  nextChristmasTrack,
-  setChristmasTrackByIndex,
-  setMusicEnabledPref,
-  startChristmasMusic,
-  stopChristmasMusic,
-  subscribeChristmasTrack,
-} from './utils/christmasMusic';
 import {
   isSoundEnabled,
   playBookmarkSound,
@@ -153,7 +142,10 @@ function loadSavedFilters(): PlotFilterState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_FILTERS);
     if (raw) {
-      return { ...INITIAL_FILTERS, ...(JSON.parse(raw) as Partial<PlotFilterState>) };
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return { ...INITIAL_FILTERS, ...(parsed as Partial<PlotFilterState>) };
+      }
     }
   } catch {
     // ignore
@@ -194,11 +186,47 @@ function loadSavedOverlay(): OverlayMode {
 function loadSavedSelectedPlot(): string | null {
   try {
     const val = localStorage.getItem(STORAGE_KEY_SELECTED_PLOT);
-    if (val) return val;
+    if (val && typeof val === 'string') return val;
   } catch {
     // ignore
   }
   return 'A01';
+}
+
+function loadSavedOverrides(): Record<string, Partial<PlotUnit>> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_OVERRIDES);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const clean: Record<string, Partial<PlotUnit>> = {};
+        for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+          if (/^[A-N]\d{2}$/.test(key) && val && typeof val === 'object' && !Array.isArray(val)) {
+            clean[key] = val as Partial<PlotUnit>;
+          }
+        }
+        return clean;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+function loadSavedBookmarks(): string[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_BOOKMARKS);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((v): v is string => typeof v === 'string' && /^[A-N]\d{2}$/.test(v)).slice(0, 4);
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [];
 }
 
 function loadSavedLoanCases(): LoanCase[] {
@@ -207,7 +235,9 @@ function loadSavedLoanCases(): LoanCase[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.map((item) => sanitizeLoanCase(item as LoanCase));
+        return parsed
+          .filter((item) => Boolean(item && typeof item === 'object'))
+          .map((item) => sanitizeLoanCase(item));
       }
     }
   } catch {
@@ -227,12 +257,13 @@ export default function App() {
   const [isTabletInspectorOpen, setIsTabletInspectorOpen] = useState<boolean>(false);
   const [showWelcome, setShowWelcome] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => isSoundEnabled());
-  const [musicEnabled, setMusicEnabledState] = useState<boolean>(() => isMusicEnabled());
-  const [currentTrack, setCurrentTrack] = useState<ChristmasTrack>(() => getCurrentChristmasTrack());
   const [isMusicHubOpen, setIsMusicHubOpen] = useState<boolean>(false);
   const [activeVocalTrack, setActiveVocalTrack] = useState<VocalTrack | null>(null);
   const [isVocalPlaying, setIsVocalPlaying] = useState<boolean>(false);
-  const [firestoreFatalError, setFirestoreFatalError] = useState<Error | null>(null);
+  const [cloudSyncAlert, setCloudSyncAlert] = useState<{
+    message: string;
+    isPermission: boolean;
+  } | null>(null);
   const [soldUnlocked, setSoldUnlocked] = useState<boolean>(() => {
     try {
       return sessionStorage.getItem(SESSION_KEY_SOLD_UNLOCKED) === 'true';
@@ -261,23 +292,9 @@ export default function App() {
     tone: 'success' | 'warning';
   } | null>(null);
 
-  const [overrides, setOverrides] = useState<Record<string, Partial<PlotUnit>>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_OVERRIDES);
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [overrides, setOverrides] = useState<Record<string, Partial<PlotUnit>>>(loadSavedOverrides);
 
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_BOOKMARKS);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(loadSavedBookmarks);
 
   const [loanCases, setLoanCases] = useState<LoanCase[]>(loadSavedLoanCases);
   const [localPublicStatuses, setLocalPublicStatuses] = useState<LoanPublicStatus[]>([]);
@@ -290,6 +307,9 @@ export default function App() {
 
   const broadcastRef = useRef<BroadcastChannel | null>(null);
   const isApplyingRemoteWorkspaceRef = useRef(false);
+  const workspaceSnapshotLoadedRef = useRef(false);
+  const hasHydratedWorkspaceRef = useRef(false);
+  const lastWorkspaceSigRef = useRef<string>('');
   const hasHydratedCloudOverridesRef = useRef(false);
   const hasHydratedCloudLoansRef = useRef(false);
   const cloudLoanCaseIdsRef = useRef<Set<string>>(new Set());
@@ -304,13 +324,38 @@ export default function App() {
     []
   );
 
+  const reportCloudSyncError = useCallback(
+    (error: unknown, operationType: OperationType, path: string | null) => {
+      let wrappedMessage = error instanceof Error ? error.message : String(error);
+      try {
+        handleFirestoreError(error, operationType, path);
+      } catch (wrapped) {
+        wrappedMessage = wrapped instanceof Error ? wrapped.message : wrappedMessage;
+      }
+      const isPermission =
+        wrappedMessage.includes('Missing or insufficient permissions') ||
+        wrappedMessage.includes('permission-denied');
+      setCloudSyncAlert({
+        isPermission,
+        message: isPermission
+          ? 'บัญชี Google นี้ยังไม่มีสิทธิ์เขียนทับบางรายการที่ถูกล็อก ข้อมูลในเครื่องยังปลอดภัยและใช้งานต่อได้ปกติ'
+          : 'การซิงค์ฐานข้อมูลกลางขัดข้องชั่วคราว ข้อมูลถูกเก็บสำรองในเครื่องเรียบร้อยแล้ว',
+      });
+    },
+    []
+  );
+
   // Auth listener & /admins/{uid} check
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthReady(true);
+      setCloudSyncAlert(null);
       hasHydratedCloudOverridesRef.current = false;
       hasHydratedCloudLoansRef.current = false;
+      workspaceSnapshotLoadedRef.current = false;
+      hasHydratedWorkspaceRef.current = false;
+      lastWorkspaceSigRef.current = '';
       cloudLoanCaseIdsRef.current.clear();
 
       if (!currentUser || !currentUser.emailVerified) {
@@ -327,11 +372,11 @@ export default function App() {
         .catch((err) => {
           setIsAdminDocMember(false);
           setAdminCheckedUid(currentUser.uid);
-          setFirestoreFatalError(err as Error);
+          reportCloudSyncError(err, OperationType.GET, `admins/${currentUser.uid}`);
         });
     });
     return () => unsub();
-  }, []);
+  }, [reportCloudSyncError]);
 
   const overridesRef = useRef(overrides);
   useEffect(() => {
@@ -370,7 +415,7 @@ export default function App() {
 
   // Real-time Firestore listener for shared plot overrides & user workspace
   useEffect(() => {
-    if (!authReady || !user || !user.emailVerified) return;
+    if (!authReady || !user || !user.emailVerified || adminCheckedUid !== user.uid) return;
 
     const plotOverridesPath = 'plot_overrides';
     const unsubPlots = onSnapshot(
@@ -447,11 +492,7 @@ export default function App() {
                   );
                 })
                 .catch((err) => {
-                  try {
-                    handleFirestoreError(err, OperationType.WRITE, plotOverridesPath);
-                  } catch (wrapped) {
-                    setFirestoreFatalError(wrapped as Error);
-                  }
+                  reportCloudSyncError(err, OperationType.WRITE, plotOverridesPath);
                 });
               return;
             }
@@ -466,11 +507,7 @@ export default function App() {
         }
       },
       (error) => {
-        try {
-          handleFirestoreError(error, OperationType.LIST, plotOverridesPath);
-        } catch (wrapped) {
-          setFirestoreFatalError(wrapped as Error);
-        }
+        reportCloudSyncError(error, OperationType.LIST, plotOverridesPath);
       }
     );
 
@@ -478,48 +515,56 @@ export default function App() {
     const unsubWorkspace = onSnapshot(
       doc(db, 'users', user.uid, 'preferences', 'workspace'),
       (docSnap) => {
-        if (!docSnap.exists()) return;
+        // Skip local latency-compensation echoes to avoid feedback/tab bounce loops
+        if (docSnap.metadata.hasPendingWrites) return;
+        workspaceSnapshotLoadedRef.current = true;
+        if (!docSnap.exists()) {
+          hasHydratedWorkspaceRef.current = true;
+          return;
+        }
         const data = docSnap.data();
+        const remoteBookmarks = Array.isArray(data.bookmarkedIds)
+          ? data.bookmarkedIds.filter((id): id is string => typeof id === 'string').slice(0, 4)
+          : null;
+        const remoteSound = typeof data.soundEnabled === 'boolean' ? data.soundEnabled : null;
+
         isApplyingRemoteWorkspaceRef.current = true;
-        if (Array.isArray(data.bookmarkedIds)) {
-          setBookmarkedIds(
-            data.bookmarkedIds.filter((id): id is string => typeof id === 'string').slice(0, 4)
-          );
+        if (remoteBookmarks) {
+          setBookmarkedIds(remoteBookmarks);
         }
-        if (typeof data.soundEnabled === 'boolean') {
-          persistSoundEnabled(data.soundEnabled);
-          setSoundEnabledState(data.soundEnabled);
+        if (remoteSound !== null) {
+          persistSoundEnabled(remoteSound);
+          setSoundEnabledState(remoteSound);
         }
-        if (
-          data.overlayMode === 'plot' ||
-          data.overlayMode === 'houseNumber' ||
-          data.overlayMode === 'price' ||
-          data.overlayMode === 'status'
-        ) {
-          setOverlayMode(data.overlayMode);
+
+        // Only hydrate overlayMode on initial sign-in; never hijack activeTab or selectedPlotId mid-session
+        if (!hasHydratedWorkspaceRef.current) {
+          hasHydratedWorkspaceRef.current = true;
+          if (
+            data.overlayMode === 'plot' ||
+            data.overlayMode === 'houseNumber' ||
+            data.overlayMode === 'price' ||
+            data.overlayMode === 'status'
+          ) {
+            setOverlayMode(data.overlayMode);
+          }
         }
-        if (
-          data.activeTab === 'plan' ||
-          data.activeTab === 'directory' ||
-          data.activeTab === 'models' ||
-          data.activeTab === 'compare' ||
-          data.activeTab === 'loans'
-        ) {
-          setActiveTab(data.activeTab);
-        }
-        if (typeof data.selectedPlotId === 'string') {
-          setSelectedPlotId(data.selectedPlotId);
-        }
-        window.setTimeout(() => {
+
+        lastWorkspaceSigRef.current = JSON.stringify({
+          bookmarkedIds: remoteBookmarks ?? bookmarkedIdsRef.current,
+          soundEnabled: remoteSound ?? soundEnabledRef.current,
+          overlayMode: overlayModeRef.current,
+          activeTab: activeTabRef.current,
+          selectedPlotId: selectedPlotIdRef.current,
+        });
+
+        window.requestAnimationFrame(() => {
           isApplyingRemoteWorkspaceRef.current = false;
-        }, 0);
+        });
       },
       (error) => {
-        try {
-          handleFirestoreError(error, OperationType.GET, workspacePath);
-        } catch (wrapped) {
-          setFirestoreFatalError(wrapped as Error);
-        }
+        workspaceSnapshotLoadedRef.current = true;
+        reportCloudSyncError(error, OperationType.GET, workspacePath);
       }
     );
 
@@ -527,7 +572,7 @@ export default function App() {
       unsubPlots();
       unsubWorkspace();
     };
-  }, [authReady, user, isAdminDocMember, showTimedNotice]);
+  }, [authReady, user, adminCheckedUid, isAdminDocMember, showTimedNotice, reportCloudSyncError]);
 
   // Real-time Firestore listener for loan_cases + automatic backfill of loan_public_status
   useEffect(() => {
@@ -646,7 +691,7 @@ export default function App() {
                 const createPub = await buildLoanPublicStatusCreatePayload(
                   cc,
                   mergedPlot,
-                  user.uid
+                  cc.ownerId || user.uid
                 );
                 batchOps.push((batch) => batch.set(publicRef, createPub));
                 backfilledCount += 1;
@@ -680,11 +725,7 @@ export default function App() {
               }
             }
           })().catch((err) => {
-            try {
-              handleFirestoreError(err, OperationType.WRITE, loanCasesPath);
-            } catch (wrapped) {
-              setFirestoreFatalError(wrapped as Error);
-            }
+            reportCloudSyncError(err, OperationType.WRITE, loanCasesPath);
           });
 
           if (unsyncedLocal.length > 0) {
@@ -700,18 +741,14 @@ export default function App() {
         }
       },
       (error) => {
-        try {
-          handleFirestoreError(error, OperationType.LIST, loanCasesPath);
-        } catch (wrapped) {
-          setFirestoreFatalError(wrapped as Error);
-        }
+        reportCloudSyncError(error, OperationType.LIST, loanCasesPath);
       }
     );
 
     return () => {
       unsubLoans();
     };
-  }, [authReady, user, adminCheckedUid, isAdminDocMember, showTimedNotice]);
+  }, [authReady, user, adminCheckedUid, isAdminDocMember, showTimedNotice, reportCloudSyncError]);
 
   // Real-time cross-tab sync via BroadcastChannel & storage events
   useEffect(() => {
@@ -721,12 +758,16 @@ export default function App() {
       ch.onmessage = (event) => {
         const msg = event.data as { type?: string; payload?: unknown } | undefined;
         if (!msg || !msg.type) return;
-        if (msg.type === 'overrides' && msg.payload && typeof msg.payload === 'object') {
+        if (msg.type === 'overrides' && msg.payload && typeof msg.payload === 'object' && !Array.isArray(msg.payload)) {
           setOverrides(msg.payload as Record<string, Partial<PlotUnit>>);
         } else if (msg.type === 'bookmarks' && Array.isArray(msg.payload)) {
-          setBookmarkedIds(msg.payload as string[]);
+          setBookmarkedIds(msg.payload.filter((v): v is string => typeof v === 'string').slice(0, 4));
         } else if (msg.type === 'loan_cases' && Array.isArray(msg.payload)) {
-          setLoanCases((msg.payload as LoanCase[]).map((item) => sanitizeLoanCase(item)));
+          setLoanCases(
+            msg.payload
+              .filter((item) => Boolean(item && typeof item === 'object'))
+              .map((item) => sanitizeLoanCase(item))
+          );
         }
       };
     }
@@ -734,13 +775,19 @@ export default function App() {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY_OVERRIDES && e.newValue) {
         try {
-          setOverrides(JSON.parse(e.newValue));
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            setOverrides(parsed as Record<string, Partial<PlotUnit>>);
+          }
         } catch {
           // ignore
         }
       } else if (e.key === STORAGE_KEY_BOOKMARKS && e.newValue) {
         try {
-          setBookmarkedIds(JSON.parse(e.newValue));
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setBookmarkedIds(parsed.filter((v): v is string => typeof v === 'string').slice(0, 4));
+          }
         } catch {
           // ignore
         }
@@ -748,7 +795,11 @@ export default function App() {
         try {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) {
-            setLoanCases(parsed.map((item) => sanitizeLoanCase(item as LoanCase)));
+            setLoanCases(
+              parsed
+                .filter((item) => Boolean(item && typeof item === 'object'))
+                .map((item) => sanitizeLoanCase(item))
+            );
           }
         } catch {
           // ignore
@@ -839,11 +890,52 @@ export default function App() {
     }
   }, [staffUnlocked]);
 
+  // Keep refs of workspace fields so unsubWorkspace reads fresh values safely without re-subscribing
+  const bookmarkedIdsRef = useRef(bookmarkedIds);
+  const soundEnabledRef = useRef(soundEnabled);
+  const overlayModeRef = useRef(overlayMode);
+  const activeTabRef = useRef(activeTab);
+  const selectedPlotIdRef = useRef(selectedPlotId);
+  useEffect(() => {
+    bookmarkedIdsRef.current = bookmarkedIds;
+  }, [bookmarkedIds]);
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+  useEffect(() => {
+    overlayModeRef.current = overlayMode;
+  }, [overlayMode]);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+  useEffect(() => {
+    selectedPlotIdRef.current = selectedPlotId;
+  }, [selectedPlotId]);
+
   // Real-time workspace cloud sync whenever workspace state changes (if signed in)
   useEffect(() => {
-    if (!authReady || !user || !user.emailVerified || isApplyingRemoteWorkspaceRef.current) {
+    if (
+      !authReady ||
+      !user ||
+      !user.emailVerified ||
+      adminCheckedUid !== user.uid ||
+      !workspaceSnapshotLoadedRef.current ||
+      isApplyingRemoteWorkspaceRef.current
+    ) {
       return;
     }
+    const sig = JSON.stringify({
+      bookmarkedIds,
+      soundEnabled,
+      overlayMode,
+      activeTab,
+      selectedPlotId,
+    });
+    if (sig === lastWorkspaceSigRef.current) {
+      return;
+    }
+    lastWorkspaceSigRef.current = sig;
+
     const workspacePath = `users/${user.uid}/preferences/workspace`;
     const syncWorkspace = async () => {
       try {
@@ -859,15 +951,21 @@ export default function App() {
           })
         );
       } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.WRITE, workspacePath);
-        } catch (wrapped) {
-          setFirestoreFatalError(wrapped as Error);
-        }
+        reportCloudSyncError(error, OperationType.WRITE, workspacePath);
       }
     };
     void syncWorkspace();
-  }, [authReady, user, bookmarkedIds, soundEnabled, overlayMode, activeTab, selectedPlotId]);
+  }, [
+    authReady,
+    user,
+    adminCheckedUid,
+    bookmarkedIds,
+    soundEnabled,
+    overlayMode,
+    activeTab,
+    selectedPlotId,
+    reportCloudSyncError,
+  ]);
 
   // Global fallback UI click & control sound effects across the entire app
   useEffect(() => {
@@ -905,31 +1003,6 @@ export default function App() {
     };
   }, []);
 
-  // Unlock and gently start soft ambient music on first user tap/click/keypress (unless vocal player is active)
-  useEffect(() => {
-    if (!musicEnabled || activeVocalTrack) {
-      stopChristmasMusic();
-      return;
-    }
-
-    const handleFirstInteraction = () => {
-      if (isMusicEnabled() && !activeVocalTrack) {
-        startChristmasMusic();
-      }
-    };
-
-    window.addEventListener('pointerdown', handleFirstInteraction, { once: true, passive: true });
-    window.addEventListener('keydown', handleFirstInteraction, { once: true });
-    return () => {
-      window.removeEventListener('pointerdown', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-    };
-  }, [musicEnabled, activeVocalTrack]);
-
-  useEffect(() => {
-    return subscribeChristmasTrack(setCurrentTrack);
-  }, []);
-
   const handleToggleSound = () => {
     const next = !soundEnabled;
     persistSoundEnabled(next);
@@ -939,43 +1012,13 @@ export default function App() {
     }
   };
 
-  const handleToggleMusic = () => {
-    const next = !musicEnabled;
-    setMusicEnabledPref(next);
-    setMusicEnabledState(next);
-    if (next) {
-      playToggleSound();
-      if (!activeVocalTrack) {
-        startChristmasMusic();
-      }
-    } else {
-      playCancelSound();
-      stopChristmasMusic();
-    }
-  };
-
-  const handleStopAmbientOnly = useCallback(() => {
-    setMusicEnabledPref(false);
-    setMusicEnabledState(false);
-    stopChristmasMusic();
-  }, []);
-
-  const handleSelectAmbientTrack = useCallback((index: number) => {
-    setMusicEnabledPref(true);
-    setMusicEnabledState(true);
-    setChristmasTrackByIndex(index);
-    startChristmasMusic();
-  }, []);
-
-  const handleNextTrack = () => {
-    playToggleSound();
-    if (!musicEnabled) {
-      setMusicEnabledPref(true);
-      setMusicEnabledState(true);
-    }
-    nextChristmasTrack();
-    startChristmasMusic();
-  };
+  const handleVocalActiveChange = useCallback(
+    (track: VocalTrack | null, playing: boolean) => {
+      setActiveVocalTrack(track);
+      setIsVocalPlaying(playing);
+    },
+    []
+  );
 
   const handleCloudAuthClick = async () => {
     if (user) {
@@ -1128,16 +1171,13 @@ export default function App() {
 
       setDirtyPlotIds([]);
       setDirtyLoanCaseIds([]);
+      setCloudSyncAlert(null);
       playSuccessSound();
       showTimedNotice(
         `ซิงค์ข้อมูลทั้งหมดขึ้นฐานข้อมูลกลางสำเร็จ (${overrideKeys.length} แปลง · ${loanCasesRef.current.length} ลูกค้า) ทุกเครื่องเห็นตรงกันแล้ว`
       );
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.WRITE, 'sync_all');
-      } catch (wrapped) {
-        setFirestoreFatalError(wrapped as Error);
-      }
+      reportCloudSyncError(error, OperationType.WRITE, 'sync_all');
     } finally {
       setIsSyncingCloud(false);
     }
@@ -1180,11 +1220,8 @@ export default function App() {
         setDirtyPlotIds((prev) => prev.filter((item) => item !== id));
         showTimedNotice(`บันทึกแปลง ${id} ลงฐานข้อมูลกลางแล้ว · ทุกเครื่องเห็นตรงกัน`);
       } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.WRITE, path);
-        } catch (wrapped) {
-          setFirestoreFatalError(wrapped as Error);
-        }
+        setDirtyPlotIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+        reportCloudSyncError(error, OperationType.WRITE, path);
       }
     } else {
       setDirtyPlotIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
@@ -1219,27 +1256,34 @@ export default function App() {
         const privateRef = doc(db, 'loan_cases', sanitized.caseId);
         const publicRef = doc(db, 'loan_public_status', sanitized.caseId);
 
-        let privateExists = cloudLoanCaseIdsRef.current.has(sanitized.caseId);
-        if (!privateExists) {
-          const existingPrivate = await getDoc(privateRef);
-          privateExists = existingPrivate.exists();
-          if (privateExists) {
-            cloudLoanCaseIdsRef.current.add(sanitized.caseId);
-          }
+        let existingPrivateData: Record<string, unknown> | undefined;
+        const existingPrivateSnap = await getDoc(privateRef);
+        const privateExists = existingPrivateSnap.exists();
+        if (privateExists) {
+          cloudLoanCaseIdsRef.current.add(sanitized.caseId);
+          existingPrivateData = existingPrivateSnap.data() as Record<string, unknown>;
         }
 
         if (!privateExists) {
           batch.set(privateRef, buildLoanCaseCreatePayload(sanitized, user.uid));
           cloudLoanCaseIdsRef.current.add(sanitized.caseId);
         } else {
-          batch.update(privateRef, buildLoanCaseUpdatePayload(sanitized));
+          batch.update(
+            privateRef,
+            buildLoanCaseUpdatePayload(sanitized, existingPrivateData, user.uid)
+          );
         }
 
         const existingPublic = await getDoc(publicRef);
         if (existingPublic.exists()) {
           batch.update(
             publicRef,
-            await buildLoanPublicStatusUpdatePayload(sanitized, targetPlot)
+            await buildLoanPublicStatusUpdatePayload(
+              sanitized,
+              targetPlot,
+              existingPublic.data() as Record<string, unknown>,
+              user.uid
+            )
           );
         } else {
           batch.set(
@@ -1250,16 +1294,19 @@ export default function App() {
 
         await batch.commit();
         setDirtyLoanCaseIds((prev) => prev.filter((id) => id !== sanitized.caseId));
+        setCloudSyncAlert(null);
         showTimedNotice(
           `บันทึกข้อมูลลูกค้าแปลง ${sanitized.plotId} ลงฐานข้อมูลกลางแล้ว · ลูกค้าและทุกเครื่องมองเห็นตรงกัน`
         );
       } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.WRITE, path);
-        } catch (wrapped) {
-          setFirestoreFatalError(wrapped as Error);
-          throw wrapped;
-        }
+        setDirtyLoanCaseIds((prev) =>
+          prev.includes(sanitized.caseId) ? prev : [...prev, sanitized.caseId]
+        );
+        reportCloudSyncError(error, OperationType.WRITE, path);
+        showTimedNotice(
+          'บันทึกข้อมูลไว้ในเครื่องเรียบร้อย (รอซิงค์ขึ้นฐานข้อมูลกลางอีกครั้ง)',
+          'warning'
+        );
       }
     } else {
       playSuccessSound();
@@ -1271,6 +1318,85 @@ export default function App() {
         'warning'
       );
     }
+  };
+
+  const handleImportLoanCases = async (importedList: LoanCase[]): Promise<number> => {
+    const cleanList = importedList.map((item) =>
+      sanitizeLoanCase({
+        ...item,
+        ownerId: item.ownerId || user?.uid,
+        updatedAtMs: item.updatedAtMs || Date.now(),
+      })
+    );
+    if (cleanList.length === 0) return 0;
+
+    setLoanCases((prev) => {
+      const mergedMap = new Map(prev.map((c) => [c.caseId, c]));
+      for (const item of cleanList) {
+        mergedMap.set(item.caseId, item);
+      }
+      const next = Array.from(mergedMap.values());
+      broadcastRef.current?.postMessage({ type: 'loan_cases', payload: next });
+      return next;
+    });
+
+    if (user && user.emailVerified) {
+      try {
+        const batchOps: Array<(batch: WriteBatch) => void> = [];
+        for (const lc of cleanList) {
+          const targetPlot = plots.find((p) => p.id === lc.plotId);
+          const privateRef = doc(db, 'loan_cases', lc.caseId);
+          const publicRef = doc(db, 'loan_public_status', lc.caseId);
+          const [privSnap, pubSnap] = await Promise.all([getDoc(privateRef), getDoc(publicRef)]);
+          if (privSnap.exists()) {
+            batchOps.push((batch) =>
+              batch.update(
+                privateRef,
+                buildLoanCaseUpdatePayload(lc, privSnap.data() as Record<string, unknown>, user.uid)
+              )
+            );
+          } else {
+            batchOps.push((batch) =>
+              batch.set(privateRef, buildLoanCaseCreatePayload(lc, user.uid))
+            );
+          }
+          if (pubSnap.exists()) {
+            const pubUpd = await buildLoanPublicStatusUpdatePayload(
+              lc,
+              targetPlot,
+              pubSnap.data() as Record<string, unknown>,
+              user.uid
+            );
+            batchOps.push((batch) => batch.update(publicRef, pubUpd));
+          } else {
+            const pubCreate = await buildLoanPublicStatusCreatePayload(lc, targetPlot, user.uid);
+            batchOps.push((batch) => batch.set(publicRef, pubCreate));
+          }
+        }
+        if (batchOps.length > 0) {
+          await runChunkedBatch(batchOps);
+        }
+        setDirtyLoanCaseIds((prev) =>
+          prev.filter((id) => !cleanList.some((c) => c.caseId === id))
+        );
+        showTimedNotice(`นำเข้าและซิงค์ฐานข้อมูลลูกค้า ${cleanList.length} รายการเรียบร้อยแล้ว`);
+      } catch (error) {
+        setDirtyLoanCaseIds((prev) =>
+          Array.from(new Set([...prev, ...cleanList.map((c) => c.caseId)]))
+        );
+        reportCloudSyncError(error, OperationType.WRITE, 'loan_cases_import');
+      }
+    } else {
+      setDirtyLoanCaseIds((prev) =>
+        Array.from(new Set([...prev, ...cleanList.map((c) => c.caseId)]))
+      );
+      showTimedNotice(
+        `นำเข้าฐานข้อมูลลูกค้า ${cleanList.length} รายการไว้ในเครื่องแล้ว (กดเชื่อมต่อ Google เพื่อซิงค์)`,
+        'warning'
+      );
+    }
+
+    return cleanList.length;
   };
 
   const handleDeleteLoanCase = async (caseId: string) => {
@@ -1292,11 +1418,7 @@ export default function App() {
         cloudLoanCaseIdsRef.current.delete(caseId);
         showTimedNotice('ลบข้อมูลออกจากฐานข้อมูลกลางเรียบร้อยแล้ว');
       } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.DELETE, path);
-        } catch (wrapped) {
-          setFirestoreFatalError(wrapped as Error);
-        }
+        reportCloudSyncError(error, OperationType.DELETE, path);
       }
     }
   };
@@ -1346,11 +1468,7 @@ export default function App() {
           showTimedNotice(`นำเข้าและบันทึก ${keys.length} แปลงลงฐานข้อมูลกลางเรียบร้อยแล้ว`);
         })
         .catch((error) => {
-          try {
-            handleFirestoreError(error, OperationType.WRITE, 'plot_overrides');
-          } catch (wrapped) {
-            setFirestoreFatalError(wrapped as Error);
-          }
+          reportCloudSyncError(error, OperationType.WRITE, 'plot_overrides');
         });
     } else {
       setDirtyPlotIds((prev) => Array.from(new Set([...prev, ...keys])));
@@ -1380,11 +1498,7 @@ export default function App() {
           try {
             await deleteDoc(doc(db, 'plot_overrides', k));
           } catch (error) {
-            try {
-              handleFirestoreError(error, OperationType.DELETE, `plot_overrides/${k}`);
-            } catch (wrapped) {
-              setFirestoreFatalError(wrapped as Error);
-            }
+            reportCloudSyncError(error, OperationType.DELETE, `plot_overrides/${k}`);
             break;
           }
         }
@@ -1461,10 +1575,6 @@ export default function App() {
   const isStaffMode = !forceCustomerView && (staffUnlocked || isVerifiedAdmin);
   const pendingSyncCount = dirtyPlotIds.length + dirtyLoanCaseIds.length;
 
-  if (firestoreFatalError) {
-    throw firestoreFatalError;
-  }
-
   return (
     <MotionConfig reducedMotion="user">
       <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-[#14191F] relative">
@@ -1486,7 +1596,6 @@ export default function App() {
           compareCount={bookmarkedIds.length}
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
-          musicEnabled={musicEnabled}
           activeMusicLabel={
             activeVocalTrack
               ? `${activeVocalTrack.title}${isVocalPlaying ? '' : ' (พัก)'}`
@@ -1557,15 +1666,57 @@ export default function App() {
         )}
 
         {cloudNotice && (
-          <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 pt-3 relative z-20">
+          <div className="fixed bottom-5 left-4 z-40 max-w-md pointer-events-none">
             <div
-              className={`px-4 py-2.5 rounded-2xl border text-xs font-medium ${
+              className={`px-4 py-2.5 rounded-2xl border text-xs font-medium shadow-[0_10px_28px_rgba(20,25,31,0.16)] backdrop-blur-md ${
                 cloudNotice.tone === 'warning'
-                  ? 'bg-amber-50 border-amber-300 text-amber-900'
-                  : 'bg-[#FBF7EE] border-[#DFC996] text-[#8A6820]'
+                  ? 'bg-amber-50/95 border-amber-300 text-amber-900'
+                  : 'bg-[#FFFEFC]/95 border-[#DFC996] text-[#8A6820]'
               }`}
             >
               {cloudNotice.msg}
+            </div>
+          </div>
+        )}
+
+        {cloudSyncAlert && (
+          <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 pt-3 relative z-20">
+            <div className="px-4 py-3 rounded-2xl border bg-amber-50 border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-start sm:items-center gap-2.5 text-xs leading-relaxed">
+                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+                <span>{cloudSyncAlert.message}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  data-sound="custom"
+                  disabled={isSyncingCloud}
+                  onClick={() => void handleSyncAllLocalToCloud()}
+                  className="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                  ลองซิงค์อีกครั้ง
+                </button>
+                {cloudSyncAlert.isPermission && (
+                  <button
+                    type="button"
+                    data-sound="custom"
+                    onClick={() => void handleCloudAuthClick()}
+                    className="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-xl cursor-pointer"
+                  >
+                    สลับบัญชี Google
+                  </button>
+                )}
+                <button
+                  type="button"
+                  data-sound="custom"
+                  onClick={() => setCloudSyncAlert(null)}
+                  aria-label="ปิดการแจ้งเตือน"
+                  className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-amber-800 hover:bg-amber-200/60 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1578,6 +1729,7 @@ export default function App() {
               loanCases={[]}
               localPublicStatuses={localPublicStatuses}
               onSearchPublicStatuses={searchPublicLoanStatus}
+              onSubscribePublicSearch={subscribePublicLoanSearch}
               onSaveCase={handleSaveLoanCase}
               onDeleteCase={handleDeleteLoanCase}
               initialPlotId={null}
@@ -1618,13 +1770,12 @@ export default function App() {
                       data-sound="custom"
                       onClick={() => {
                         playTabSwitchSound();
-                        if (musicEnabled) startChristmasMusic();
                         setActiveTab('loans');
                       }}
                       className="min-h-[44px] inline-flex items-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98] shadow-sm"
                     >
                       <Landmark className="w-4 h-4" />
-                      เช็คสถานะธนาคาร
+                      ฐานข้อมูลลูกค้า & สถานะสินเชื่อ
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
 
@@ -1633,7 +1784,6 @@ export default function App() {
                       data-sound="custom"
                       onClick={() => {
                         playTabSwitchSound();
-                        if (musicEnabled) startChristmasMusic();
                         setActiveTab('models');
                       }}
                       className="min-h-[44px] inline-flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium text-white bg-white/10 hover:bg-white/18 border border-white/20 rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98]"
@@ -1647,7 +1797,6 @@ export default function App() {
                       data-sound="custom"
                       onClick={() => {
                         playMeowSound();
-                        if (musicEnabled) startChristmasMusic();
                         setShowWelcome(true);
                       }}
                       className="min-h-[44px] inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-medium text-white bg-white/8 hover:bg-white/16 border border-white/15 rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98]"
@@ -1663,7 +1812,7 @@ export default function App() {
                         playClickSound();
                         setIsMusicHubOpen(true);
                       }}
-                      title="เลือกฟังเพลงบ้านของหัวใจ เพลงเกี่ยวกับบ้าน หรือเพลงใหม่ของ LISA"
+                      title="เลือกฟังเพลงมีคนร้อง: บ้านของหัวใจ เพลงเกี่ยวกับบ้าน และเพลงใหม่ LISA"
                       className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-[#E5C57B] bg-white/8 hover:bg-white/16 border border-[#C59B48]/35 rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98]"
                     >
                       <Music className="w-3.5 h-3.5 shrink-0" />
@@ -1672,17 +1821,6 @@ export default function App() {
                           ? `กำลังเล่น: ${activeVocalTrack.title}`
                           : 'เพลงบ้านของหัวใจ & LISA'}
                       </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      data-sound="custom"
-                      onClick={handleNextTrack}
-                      title={`เปลี่ยนเพลงบรรเลง (${currentTrack.title} · ${currentTrack.thaiMood})`}
-                      className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-zinc-200 bg-white/8 hover:bg-white/16 border border-white/15 rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98]"
-                    >
-                      <SkipForward className="w-3.5 h-3.5 shrink-0 text-[#E5C57B]" />
-                      <span className="max-w-[160px] truncate">{currentTrack.title}</span>
                     </button>
                   </div>
                 </div>
@@ -1818,7 +1956,9 @@ export default function App() {
               loanCases={loanCases}
               localPublicStatuses={localPublicStatuses}
               onSearchPublicStatuses={searchPublicLoanStatus}
+              onSubscribePublicSearch={subscribePublicLoanSearch}
               onSaveCase={handleSaveLoanCase}
+              onImportCases={handleImportLoanCases}
               onDeleteCase={handleDeleteLoanCase}
               initialPlotId={selectedPlotId}
             />
@@ -1907,14 +2047,14 @@ export default function App() {
                       }}
                       className="text-left py-1 text-[#E5C57B] hover:text-white cursor-pointer transition-colors col-span-2"
                     >
-                      จัดการสินเชื่อลูกค้า (Customer & Banks)
+                      คลังฐานข้อมูลลูกค้า & สถานะธนาคาร (Customer Database)
                     </button>
                   </div>
                 </div>
               )}
 
               <div>
-                <div className="text-xs font-semibold text-[#E5C57B] mb-3">เสียงบรรยากาศ & คลังเพลง</div>
+                <div className="text-xs font-semibold text-[#E5C57B] mb-3">คลังเพลงประจำโครงการ</div>
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     type="button"
@@ -1927,30 +2067,6 @@ export default function App() {
                   >
                     <Music className="w-3.5 h-3.5" />
                     เลือกเพลงบ้านของหัวใจ & LISA (34 เพลง)
-                  </button>
-
-                  <button
-                    type="button"
-                    data-sound="custom"
-                    onClick={handleToggleMusic}
-                    className={`min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-xl border cursor-pointer transition-colors ${
-                      musicEnabled
-                        ? 'bg-white/15 border-[#E5C57B]/50 text-white hover:bg-white/25'
-                        : 'bg-white/6 border-white/15 text-white/70 hover:bg-white/12'
-                    }`}
-                  >
-                    <Music className={`w-3.5 h-3.5 ${musicEnabled ? 'text-[#E5C57B]' : ''}`} />
-                    {musicEnabled ? 'เพลงบรรเลง: เปิดอยู่' : 'เปิดเพลงบรรเลง'}
-                  </button>
-
-                  <button
-                    type="button"
-                    data-sound="custom"
-                    onClick={handleNextTrack}
-                    className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#E5C57B] bg-white/10 hover:bg-white/20 border border-[#C59B48]/30 rounded-xl cursor-pointer transition-colors"
-                  >
-                    <SkipForward className="w-3.5 h-3.5" />
-                    เปลี่ยนเพลงบรรเลง
                   </button>
 
                   {isStaffMode && (
@@ -1971,7 +2087,7 @@ export default function App() {
                 <p className="mt-2.5 text-[11px] text-zinc-400">
                   {activeVocalTrack
                     ? `กำลังเล่นเพลงมีคนร้อง: ${activeVocalTrack.title} · ${activeVocalTrack.artist}`
-                    : `เพลงบรรเลง: ${currentTrack.title} · ${currentTrack.thaiMood} (${LUXURY_AMBIENT_PLAYLIST.length} บทเพลง)`}
+                    : 'เฉพาะเพลงมีคนร้อง 34 เพลง (บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · เพลงใหม่ LISA)'}
                 </p>
               </div>
             </div>
@@ -2092,14 +2208,7 @@ export default function App() {
               isOpen={showWelcome}
               soundEnabled={soundEnabled}
               onToggleSound={handleToggleSound}
-              musicEnabled={musicEnabled}
-              onToggleMusic={handleToggleMusic}
-              onNextTrack={handleNextTrack}
-              onEnter={(tab) => {
-                if (musicEnabled) startChristmasMusic();
-                setActiveTab(tab);
-                setShowWelcome(false);
-              }}
+              onEnter={() => setShowWelcome(false)}
             />
 
             <DataManageModal
@@ -2142,15 +2251,7 @@ export default function App() {
           onClose={() => setIsMusicHubOpen(false)}
           onOpen={() => setIsMusicHubOpen(true)}
           isStaffMode={isStaffMode}
-          ambientEnabled={musicEnabled}
-          currentAmbientTrack={currentTrack}
-          onSelectAmbientTrack={handleSelectAmbientTrack}
-          onToggleAmbientMusic={handleToggleMusic}
-          onStopAmbientMusic={handleStopAmbientOnly}
-          onVocalActiveChange={(track, playing) => {
-            setActiveVocalTrack(track);
-            setIsVocalPlaying(playing);
-          }}
+          onVocalActiveChange={handleVocalActiveChange}
         />
       </div>
     </MotionConfig>

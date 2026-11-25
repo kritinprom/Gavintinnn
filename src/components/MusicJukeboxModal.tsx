@@ -5,7 +5,6 @@ import {
   Music,
   Pause,
   Play,
-  Radio,
   Search,
   Shuffle,
   SkipBack,
@@ -21,10 +20,6 @@ import {
   VocalCategory,
   VocalTrack,
 } from '../data/vocalPlaylist';
-import {
-  LUXURY_AMBIENT_PLAYLIST,
-  LuxuryTrack,
-} from '../utils/christmasMusic';
 import {
   playCancelSound,
   playClickSound,
@@ -118,11 +113,6 @@ interface MusicJukeboxModalProps {
   onClose: () => void;
   onOpen: () => void;
   isStaffMode: boolean;
-  ambientEnabled: boolean;
-  currentAmbientTrack: LuxuryTrack;
-  onSelectAmbientTrack: (index: number) => void;
-  onToggleAmbientMusic: () => void;
-  onStopAmbientMusic: () => void;
   onVocalActiveChange?: (activeTrack: VocalTrack | null, isPlaying: boolean) => void;
 }
 
@@ -131,14 +121,8 @@ export function MusicJukeboxModal({
   onClose,
   onOpen,
   isStaffMode,
-  ambientEnabled,
-  currentAmbientTrack,
-  onSelectAmbientTrack,
-  onToggleAmbientMusic,
-  onStopAmbientMusic,
   onVocalActiveChange,
 }: MusicJukeboxModalProps) {
-  const [libraryTab, setLibraryTab] = useState<'vocal' | 'ambient'>('vocal');
   const [vocalCategory, setVocalCategory] = useState<VocalCategory>('all');
   const [searchText, setSearchText] = useState<string>('');
   const [activeVocalTrack, setActiveVocalTrack] = useState<VocalTrack | null>(null);
@@ -206,7 +190,6 @@ export function MusicJukeboxModal({
     (track: VocalTrack) => {
       playClickSound();
       stopLocalAudio();
-      onStopAmbientMusic();
       setEmbedBlockedCode(null);
       setActiveVocalTrack(track);
       setIsVocalPlaying(true);
@@ -226,7 +209,7 @@ export function MusicJukeboxModal({
         pendingVideoIdRef.current = track.youtubeId;
       }
     },
-    [isMuted, onStopAmbientMusic, stopLocalAudio]
+    [isMuted, stopLocalAudio]
   );
 
   const handleStepVocalTrack = useCallback(
@@ -305,7 +288,6 @@ export function MusicJukeboxModal({
               if (event.data === 1) {
                 setEmbedBlockedCode(null);
                 setIsVocalPlaying(true);
-                onStopAmbientMusic();
               } else if (event.data === 2) {
                 setIsVocalPlaying(false);
               } else if (event.data === 0) {
@@ -326,9 +308,9 @@ export function MusicJukeboxModal({
     return () => {
       cancelled = true;
     };
-  }, [activeVocalTrack, handleStepVocalTrack, onStopAmbientMusic]);
+  }, [activeVocalTrack, handleStepVocalTrack]);
 
-  // Cleanup YouTube player and local object URL on unmount
+  // Cleanup YouTube player ONLY on component unmount
   useEffect(() => {
     return () => {
       if (ytPlayerRef.current) {
@@ -338,7 +320,14 @@ export function MusicJukeboxModal({
           // ignore
         }
         ytPlayerRef.current = null;
+        ytReadyRef.current = false;
       }
+    };
+  }, []);
+
+  // Revoke local object URL cleanly when changed or unmounted
+  useEffect(() => {
+    return () => {
       if (localAudioUrl) {
         URL.revokeObjectURL(localAudioUrl);
       }
@@ -356,7 +345,6 @@ export function MusicJukeboxModal({
       ytPlayerRef.current.pauseVideo();
       setIsVocalPlaying(false);
     } else {
-      onStopAmbientMusic();
       ytPlayerRef.current.playVideo();
       setIsVocalPlaying(true);
     }
@@ -408,7 +396,6 @@ export function MusicJukeboxModal({
     }
     setActiveVocalTrack(null);
     setIsVocalPlaying(false);
-    onStopAmbientMusic();
     setLocalAudioUrl(url);
     setLocalAudioName(file.name.replace(/\.[^.]+$/, ''));
     setIsLocalAudioPlaying(true);
@@ -431,7 +418,6 @@ export function MusicJukeboxModal({
           src={localAudioUrl}
           onPlay={() => {
             setIsLocalAudioPlaying(true);
-            onStopAmbientMusic();
           }}
           onPause={() => setIsLocalAudioPlaying(false)}
           onEnded={() => setIsLocalAudioPlaying(false)}
@@ -480,8 +466,7 @@ export function MusicJukeboxModal({
                     คลังเพลงบ้านของหัวใจ & เพลงใหม่ LISA
                   </h2>
                   <p className="text-xs text-zinc-400 truncate">
-                    เพลงมีคนร้อง {VOCAL_PLAYLIST.length} เพลง · เพลงบรรเลงเกี่ยวกับบ้าน{' '}
-                    {LUXURY_AMBIENT_PLAYLIST.length} เพลง
+                    เพลงมีคนร้องทั้งหมด {VOCAL_PLAYLIST.length} เพลง (บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · LISA)
                   </p>
                 </div>
               </div>
@@ -535,12 +520,10 @@ export function MusicJukeboxModal({
                     <p className="text-sm font-semibold text-white">
                       {localAudioName
                         ? `กำลังเล่นไฟล์: ${localAudioName}`
-                        : ambientEnabled
-                        ? 'กำลังเล่นเพลงบรรเลงเกี่ยวกับบ้าน'
-                        : 'เลือกเพลงที่ต้องการฟังจากรายการด้านขวา'}
+                        : 'เลือกเพลงที่มีคนร้องจากรายการด้านขวา'}
                     </p>
                     <p className="mt-1 text-xs text-zinc-400">
-                      กดปุ่มเล่นที่เพลง "บ้านของหัวใจ" หรือเพลงใหม่ของ LISA ได้ทันที
+                      กดปุ่มเล่นที่เพลง "บ้านของหัวใจ" เพลงเกี่ยวกับบ้าน หรือเพลงใหม่ของ LISA ได้ทันที
                     </p>
                   </div>
                 )}
@@ -608,12 +591,14 @@ export function MusicJukeboxModal({
                   isOpen && (
                     <>
                       <div className="text-xs font-semibold text-[#E5C57B]">
-                        โหมดเพลงบรรเลงเปียโน (20 เพลง)
+                        คลังเพลงมีคนร้อง ({VOCAL_PLAYLIST.length} เพลง)
                       </div>
                       <div className="text-sm font-bold text-white truncate">
-                        {currentAmbientTrack.title}
+                        พร้อมเล่นทันที
                       </div>
-                      <div className="text-xs text-zinc-400">{currentAmbientTrack.thaiMood}</div>
+                      <div className="text-xs text-zinc-400">
+                        บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · LISA
+                      </div>
                     </>
                   )
                 )}
@@ -703,7 +688,7 @@ export function MusicJukeboxModal({
                     </a>
                   )}
 
-                  {/* Quick local audio upload & Ambient toggle */}
+                  {/* Quick local audio upload */}
                   <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-2">
                     <input
                       ref={fileInputRef}
@@ -716,30 +701,10 @@ export function MusicJukeboxModal({
                       type="button"
                       data-sound="custom"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex-1 min-h-[38px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-200 bg-white/6 hover:bg-white/14 border border-white/15 rounded-xl cursor-pointer transition-colors whitespace-nowrap"
+                      className="w-full min-h-[38px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-200 bg-white/6 hover:bg-white/14 border border-white/15 rounded-xl cursor-pointer transition-colors whitespace-nowrap"
                     >
                       <Upload className="w-3.5 h-3.5 text-[#E5C57B]" />
-                      เปิดไฟล์ MP3 จากเครื่อง
-                    </button>
-
-                    <button
-                      type="button"
-                      data-sound="custom"
-                      onClick={() => {
-                        if (activeVocalTrack) {
-                          handleStopAndDismissVocal();
-                        }
-                        stopLocalAudio();
-                        onToggleAmbientMusic();
-                      }}
-                      className={`min-h-[38px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border cursor-pointer transition-colors whitespace-nowrap ${
-                        ambientEnabled && !activeVocalTrack && !isLocalAudioPlaying
-                          ? 'bg-[#E5C57B]/20 border-[#E5C57B] text-[#E5C57B]'
-                          : 'bg-white/6 border-white/15 text-zinc-300 hover:bg-white/14'
-                      }`}
-                    >
-                      <Radio className="w-3.5 h-3.5" />
-                      {ambientEnabled && !activeVocalTrack ? 'ปิดบรรเลง' : 'ฟังบรรเลง'}
+                      เปิดไฟล์เพลง MP3 / M4A จากเครื่อง
                     </button>
                   </div>
                 </div>
@@ -826,230 +791,142 @@ export function MusicJukeboxModal({
               )}
             </div>
 
-            {/* RIGHT PLAYLIST DIRECTORY (only when open) */}
+            {/* RIGHT PLAYLIST DIRECTORY (only when open) — ONLY Vocal Songs */}
             {isOpen && (
               <div className="flex-1 min-h-0 flex flex-col bg-[#FFFEFC] overflow-hidden">
-                {/* Library Mode Tabs + Search */}
+                {/* Category Filter Tabs + Search */}
                 <div className="p-4 sm:p-5 border-b border-[#EAE4D7] space-y-3 shrink-0">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="inline-flex items-center p-1 bg-[#F3EFE6] rounded-xl border border-[#E5DEC9]">
-                      <button
-                        type="button"
-                        data-sound="custom"
-                        onClick={() => {
-                          playClickSound();
-                          setLibraryTab('vocal');
-                        }}
-                        className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                          libraryTab === 'vocal'
-                            ? 'bg-[#14191F] text-[#E5C57B] shadow-2xs'
-                            : 'text-zinc-600 hover:text-[#14191F]'
-                        }`}
-                      >
-                        เพลงมีคนร้อง ({VOCAL_PLAYLIST.length})
-                      </button>
-                      <button
-                        type="button"
-                        data-sound="custom"
-                        onClick={() => {
-                          playClickSound();
-                          setLibraryTab('ambient');
-                        }}
-                        className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                          libraryTab === 'ambient'
-                            ? 'bg-[#14191F] text-[#E5C57B] shadow-2xs'
-                            : 'text-zinc-600 hover:text-[#14191F]'
-                        }`}
-                      >
-                        เพลงบรรเลงเกี่ยวกับบ้าน ({LUXURY_AMBIENT_PLAYLIST.length})
-                      </button>
-                    </div>
-                  </div>
-
-                  {libraryTab === 'vocal' && (
-                    <>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {VOCAL_CATEGORY_TABS.map((cat) => {
-                          const isActive = vocalCategory === cat.id;
-                          return (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              data-sound="custom"
-                              onClick={() => {
-                                playClickSound();
-                                setVocalCategory(cat.id);
-                              }}
-                              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
-                                isActive
-                                  ? 'bg-[#FBF7EE] border-[#C59B48] text-[#8A6820] font-semibold'
-                                  : 'bg-white border-[#E4DFD3] text-zinc-600 hover:text-[#14191F] hover:border-[#C59B48]/50'
-                              }`}
-                            >
-                              {cat.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="relative">
-                        <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input
-                          type="text"
-                          value={searchText}
-                          onChange={(e) => setSearchText(e.target.value)}
-                          placeholder="ค้นหาชื่อเพลง ศิลปิน หรืออัลบั้ม (เช่น บ้านของหัวใจ, LISA, Alter Ego, Press Play)..."
-                          className="w-full h-10 pl-10 pr-9 text-xs sm:text-sm bg-[#FAF8F4] border border-[#E2DDD0] rounded-xl text-[#14191F] placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C59B48]/50 focus:border-[#C59B48]"
-                        />
-                        {searchText && (
-                          <button
-                            type="button"
-                            onClick={() => setSearchText('')}
-                            aria-label="ล้างคำค้นหา"
-                            className="w-8 h-8 inline-flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Scrollable Track List */}
-                <div className="flex-1 overflow-y-auto divide-y divide-[#EFEAE0]">
-                  {libraryTab === 'vocal' ? (
-                    filteredVocalTracks.length === 0 ? (
-                      <div className="p-10 text-center space-y-2">
-                        <p className="text-sm font-medium text-zinc-600">
-                          ไม่พบเพลงที่ตรงกับ "{searchText}"
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSearchText('');
-                            setVocalCategory('all');
-                          }}
-                          className="px-4 py-2 text-xs font-semibold text-[#14191F] bg-[#F3EFE6] hover:bg-[#EAE4D7] rounded-xl cursor-pointer"
-                        >
-                          แสดงเพลงทั้งหมด ({VOCAL_PLAYLIST.length} เพลง)
-                        </button>
-                      </div>
-                    ) : (
-                      filteredVocalTracks.map((track, idx) => {
-                        const isSelected = activeVocalTrack?.id === track.id;
-                        return (
-                          <div
-                            key={track.id}
-                            className={`px-4 sm:px-5 py-3 flex items-center justify-between gap-3 transition-colors ${
-                              isSelected ? 'bg-[#FBF7EE]' : 'hover:bg-[#FAF8F4]'
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              data-sound="custom"
-                              onClick={() => handleSelectVocalTrack(track)}
-                              className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer"
-                            >
-                              <span
-                                className={`w-7 text-xs font-mono-tabular shrink-0 ${
-                                  isSelected ? 'font-bold text-[#9B7A36]' : 'text-zinc-400'
-                                }`}
-                              >
-                                {String(idx + 1).padStart(2, '0')}
-                              </span>
-
-                              <div
-                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                                  isSelected
-                                    ? 'bg-[#14191F] text-[#E5C57B]'
-                                    : 'bg-[#F3EFE6] text-[#14191F]'
-                                }`}
-                              >
-                                {isSelected && isVocalPlaying ? (
-                                  <Pause className="w-4 h-4" />
-                                ) : (
-                                  <Play className="w-4 h-4 ml-0.5" />
-                                )}
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <div
-                                  className={`text-sm font-semibold truncate ${
-                                    isSelected ? 'text-[#14191F]' : 'text-zinc-900'
-                                  }`}
-                                >
-                                  {track.title}
-                                </div>
-                                <div className="text-xs text-zinc-500 truncate">
-                                  <span>{track.artist}</span>
-                                  <span aria-hidden="true" className="mx-1.5">
-                                    ·
-                                  </span>
-                                  <span>{track.albumOrOrigin}</span>
-                                </div>
-                              </div>
-                            </button>
-
-                            <a
-                              href={`https://www.youtube.com/watch?v=${track.youtubeId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={`ฟัง ${track.title} บน YouTube`}
-                              aria-label={`ฟัง ${track.title} บน YouTube`}
-                              className="w-9 h-9 inline-flex items-center justify-center rounded-xl text-zinc-400 hover:text-[#14191F] hover:bg-[#EFEAE0] shrink-0 transition-colors"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          </div>
-                        );
-                      })
-                    )
-                  ) : (
-                    LUXURY_AMBIENT_PLAYLIST.map((track, idx) => {
-                      const isActive =
-                        !activeVocalTrack &&
-                        !isLocalAudioPlaying &&
-                        ambientEnabled &&
-                        currentAmbientTrack.id === track.id;
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {VOCAL_CATEGORY_TABS.map((cat) => {
+                      const isActive = vocalCategory === cat.id;
                       return (
                         <button
-                          key={track.id}
+                          key={cat.id}
                           type="button"
                           data-sound="custom"
                           onClick={() => {
                             playClickSound();
-                            handleStopAndDismissVocal();
-                            stopLocalAudio();
-                            onSelectAmbientTrack(idx);
+                            setVocalCategory(cat.id);
                           }}
-                          className={`w-full px-4 sm:px-5 py-3 flex items-center gap-3 text-left transition-colors cursor-pointer ${
-                            isActive ? 'bg-[#FBF7EE]' : 'hover:bg-[#FAF8F4]'
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
+                            isActive
+                              ? 'bg-[#14191F] border-[#14191F] text-[#E5C57B] font-semibold shadow-2xs'
+                              : 'bg-white border-[#E4DFD3] text-zinc-600 hover:text-[#14191F] hover:border-[#C59B48]/50'
                           }`}
                         >
-                          <span
-                            className={`w-7 text-xs font-mono-tabular shrink-0 ${
-                              isActive ? 'font-bold text-[#9B7A36]' : 'text-zinc-400'
-                            }`}
-                          >
-                            {String(idx + 1).padStart(2, '0')}
-                          </span>
-                          <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                              isActive
-                                ? 'bg-[#14191F] text-[#E5C57B]'
-                                : 'bg-[#F3EFE6] text-[#14191F]'
-                            }`}
-                          >
-                            <Music className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold text-[#14191F] truncate">
-                              {track.title}
-                            </div>
-                            <div className="text-xs text-zinc-500 truncate">{track.thaiMood}</div>
-                          </div>
+                          {cat.label}
                         </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      placeholder="ค้นหาชื่อเพลง ศิลปิน หรืออัลบั้ม (เช่น บ้านของหัวใจ, LISA, Alter Ego, Press Play)..."
+                      className="w-full h-10 pl-10 pr-9 text-xs sm:text-sm bg-[#FAF8F4] border border-[#E2DDD0] rounded-xl text-[#14191F] placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C59B48]/50 focus:border-[#C59B48]"
+                    />
+                    {searchText && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchText('')}
+                        aria-label="ล้างคำค้นหา"
+                        className="w-8 h-8 inline-flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scrollable Vocal Track List */}
+                <div className="flex-1 overflow-y-auto divide-y divide-[#EFEAE0]">
+                  {filteredVocalTracks.length === 0 ? (
+                    <div className="p-10 text-center space-y-2">
+                      <p className="text-sm font-medium text-zinc-600">
+                        ไม่พบเพลงที่ตรงกับ "{searchText}"
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchText('');
+                          setVocalCategory('all');
+                        }}
+                        className="px-4 py-2 text-xs font-semibold text-[#14191F] bg-[#F3EFE6] hover:bg-[#EAE4D7] rounded-xl cursor-pointer"
+                      >
+                        แสดงเพลงทั้งหมด ({VOCAL_PLAYLIST.length} เพลง)
+                      </button>
+                    </div>
+                  ) : (
+                    filteredVocalTracks.map((track, idx) => {
+                      const isSelected = activeVocalTrack?.id === track.id;
+                      return (
+                        <div
+                          key={track.id}
+                          className={`px-4 sm:px-5 py-3 flex items-center justify-between gap-3 transition-colors ${
+                            isSelected ? 'bg-[#FBF7EE]' : 'hover:bg-[#FAF8F4]'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            data-sound="custom"
+                            onClick={() => handleSelectVocalTrack(track)}
+                            className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer"
+                          >
+                            <span
+                              className={`w-7 text-xs font-mono-tabular shrink-0 ${
+                                isSelected ? 'font-bold text-[#9B7A36]' : 'text-zinc-400'
+                              }`}
+                            >
+                              {String(idx + 1).padStart(2, '0')}
+                            </span>
+
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                isSelected
+                                  ? 'bg-[#14191F] text-[#E5C57B]'
+                                  : 'bg-[#F3EFE6] text-[#14191F]'
+                              }`}
+                            >
+                              {isSelected && isVocalPlaying ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Play className="w-4 h-4 ml-0.5" />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div
+                                className={`text-sm font-semibold truncate ${
+                                  isSelected ? 'text-[#14191F]' : 'text-zinc-900'
+                                }`}
+                              >
+                                {track.title}
+                              </div>
+                              <div className="text-xs text-zinc-500 truncate">
+                                <span>{track.artist}</span>
+                                <span aria-hidden="true" className="mx-1.5">
+                                  ·
+                                </span>
+                                <span>{track.albumOrOrigin}</span>
+                              </div>
+                            </div>
+                          </button>
+
+                          <a
+                            href={`https://www.youtube.com/watch?v=${track.youtubeId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`ฟัง ${track.title} บน YouTube`}
+                            aria-label={`ฟัง ${track.title} บน YouTube`}
+                            className="w-9 h-9 inline-flex items-center justify-center rounded-xl text-zinc-400 hover:text-[#14191F] hover:bg-[#EFEAE0] shrink-0 transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
                       );
                     })
                   )}

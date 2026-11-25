@@ -83,7 +83,7 @@ export function UnlockModal({
               </h2>
               <p className="text-[11px] text-stone-300">
                 {isStaff
-                  ? 'สำหรับฝ่ายขายจัดการผังโครงการ ราคา และข้อมูลลูกค้า'
+                  ? 'เปิดผังโครงการ ราคา และคลังฐานข้อมูลลูกค้าแบบเรียลไทม์'
                   : 'ใส่รหัสผ่านเพื่อแก้ไขข้อมูลแปลงที่ขายแล้ว'}
               </p>
             </div>
@@ -150,7 +150,6 @@ export function UnlockModal({
                   id="unlock-passcode-input"
                   type={showCode ? 'text' : 'password'}
                   inputMode="numeric"
-                  autoFocus={!isStaff}
                   value={code}
                   onChange={(e) => {
                     setCode(e.target.value);

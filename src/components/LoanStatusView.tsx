@@ -8,8 +8,12 @@ import {
   Cloud,
   CloudOff,
   CreditCard,
+  Database,
+  Download,
   Eye,
   EyeOff,
+  FileSpreadsheet,
+  HardDrive,
   KeyRound,
   Landmark,
   Lock,
@@ -20,10 +24,12 @@ import {
   Search,
   Trash2,
   Unlock,
+  Upload,
   UserCheck,
   X,
 } from 'lucide-react';
 import { HOUSE_MODELS } from '../data/houseModels';
+import { getDatabaseStorageInfo, sanitizeLoanCase } from '../firebase';
 import {
   BankApplicationEntry,
   BankApplicationStatus,
@@ -43,6 +49,7 @@ import {
   LOAN_OVERALL_STATUS_LABELS,
   LOAN_OVERALL_STATUS_ORDER,
   LOAN_OVERALL_STATUS_STYLES,
+  loanCasesToCSV,
   maskCustomerName,
   maskIdCardNumber,
   maskPhoneNumber,
@@ -75,7 +82,13 @@ interface LoanStatusViewProps {
   loanCases: LoanCase[];
   localPublicStatuses: LoanPublicStatus[];
   onSearchPublicStatuses: (queryText: string) => Promise<LoanPublicStatus[]>;
+  onSubscribePublicSearch?: (
+    queryText: string,
+    onResults: (records: LoanPublicStatus[]) => void,
+    onError: (err: unknown) => void
+  ) => () => void;
   onSaveCase: (loanCase: LoanCase, isNew: boolean) => Promise<void> | void;
+  onImportCases?: (cases: LoanCase[]) => Promise<number> | number;
   onDeleteCase: (caseId: string) => Promise<void> | void;
   initialPlotId?: string | null;
 }
@@ -124,7 +137,9 @@ export function LoanStatusView({
   loanCases,
   localPublicStatuses,
   onSearchPublicStatuses,
+  onSubscribePublicSearch,
   onSaveCase,
+  onImportCases,
   onDeleteCase,
   initialPlotId,
 }: LoanStatusViewProps) {
@@ -143,6 +158,8 @@ export function LoanStatusView({
   const [manageSearch, setManageSearch] = useState<string>('');
   const [manageStatusFilter, setManageStatusFilter] = useState<LoanOverallStatus | 'ALL'>('ALL');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isLiveSearchSubscribed, setIsLiveSearchSubscribed] = useState<boolean>(false);
+  const [dbFeedback, setDbFeedback] = useState<string | null>(null);
 
   // Add / Edit form state (Staff only)
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
@@ -223,42 +240,77 @@ export function LoanStatusView({
     };
   }, [customerQuery]);
 
-  // Debounced live Firestore public lookup when threshold is met
+  // Real-time debounced Firestore onSnapshot public lookup when threshold is met
   useEffect(() => {
     if (effectiveSubMode !== 'customer' || !queryAnalysis.meetsMinThreshold) {
       setRemoteMatches([]);
       setIsSearchingRemote(false);
+      setIsLiveSearchSubscribed(false);
       setSearchError(null);
       return;
     }
 
     let cancelled = false;
+    let unsubscribeLive: (() => void) | null = null;
     setIsSearchingRemote(true);
     setSearchError(null);
-    const timer = window.setTimeout(async () => {
-      try {
-        const remote = await onSearchPublicStatuses(queryAnalysis.raw);
-        if (!cancelled) {
-          setRemoteMatches(remote);
-          setSearchError(null);
-        }
-      } catch {
-        if (!cancelled) {
-          setRemoteMatches([]);
-          setSearchError('ไม่สามารถเชื่อมต่อฐานข้อมูลกลางได้ชั่วคราว กรุณาลองค้นหาอีกครั้ง');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsSearchingRemote(false);
-        }
+
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      if (onSubscribePublicSearch) {
+        unsubscribeLive = onSubscribePublicSearch(
+          queryAnalysis.raw,
+          (remote) => {
+            if (cancelled) return;
+            setRemoteMatches(remote);
+            setIsSearchingRemote(false);
+            setIsLiveSearchSubscribed(true);
+            setSearchError(null);
+          },
+          () => {
+            if (cancelled) return;
+            setIsSearchingRemote(false);
+            setIsLiveSearchSubscribed(false);
+            setSearchError('ไม่สามารถเชื่อมต่อฐานข้อมูลกลางได้ชั่วคราว กรุณาลองค้นหาอีกครั้ง');
+          }
+        );
+      } else {
+        void (async () => {
+          try {
+            const remote = await onSearchPublicStatuses(queryAnalysis.raw);
+            if (!cancelled) {
+              setRemoteMatches(remote);
+              setSearchError(null);
+            }
+          } catch {
+            if (!cancelled) {
+              setRemoteMatches([]);
+              setSearchError('ไม่สามารถเชื่อมต่อฐานข้อมูลกลางได้ชั่วคราว กรุณาลองค้นหาอีกครั้ง');
+            }
+          } finally {
+            if (!cancelled) {
+              setIsSearchingRemote(false);
+            }
+          }
+        })();
       }
-    }, 240);
+    }, 220);
 
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      if (unsubscribeLive) {
+        unsubscribeLive();
+        unsubscribeLive = null;
+      }
     };
-  }, [effectiveSubMode, queryAnalysis, onSearchPublicStatuses, searchRetryTick]);
+  }, [
+    effectiveSubMode,
+    queryAnalysis,
+    onSearchPublicStatuses,
+    onSubscribePublicSearch,
+    searchRetryTick,
+  ]);
 
   // Merge localPublicStatuses matches + Firestore remoteMatches without ever exposing unmasked PII
   const customerMatchedPublicCases = useMemo(() => {
@@ -823,14 +875,20 @@ export function LoanStatusView({
             {/* Masked Suggestion List (ONLY 3 chars + xxxx & masked phone) */}
             {queryAnalysis.meetsMinThreshold && (
               <div className="mt-5 pt-5 border-t border-[#ECE7DC] space-y-3">
-                <div className="flex items-center justify-between text-xs text-zinc-500">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
                   <span>
                     {isSearchingRemote
-                      ? 'กำลังค้นหาข้อมูลในระบบ...'
+                      ? 'กำลังเชื่อมต่อค้นหาในฐานข้อมูลแบบเรียลไทม์...'
                       : customerMatchedPublicCases.length > 0
                       ? `พบรายการที่ตรงกัน ${customerMatchedPublicCases.length} รายการ (เลือกรายการของคุณเพื่อใส่รหัสบัตรประชาชน)`
                       : 'ไม่พบข้อมูลที่ตรงกับคำค้นหา'}
                   </span>
+                  {isLiveSearchSubscribed && !searchError && (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#8A6820]">
+                      <Database className="w-3.5 h-3.5 shrink-0" />
+                      ซิงค์สถานะแบบเรียลไทม์ (อัปเดตอัตโนมัติ)
+                    </span>
+                  )}
                 </div>
 
                 {customerMatchedPublicCases.length > 0 && (
@@ -984,14 +1042,14 @@ export function LoanStatusView({
                         id="customer-idcard-passcode"
                         type={showPasscodeInput ? 'text' : 'password'}
                         inputMode="numeric"
-                        autoFocus
-                        maxLength={17}
+                        autoComplete="off"
+                        maxLength={13}
                         value={idCardPasscodeInput}
                         onChange={(e) => {
-                          setIdCardPasscodeInput(e.target.value);
+                          setIdCardPasscodeInput(normalizeIdCardDigits(e.target.value));
                           if (passcodeError) setPasscodeError(null);
                         }}
-                        placeholder="กรอกเลขบัตรประชาชน 13 หลัก..."
+                        placeholder="กรอกเลขบัตรประชาชน 13 หลัก (ไม่ต้องใส่ขีด -)"
                         className={`w-full min-h-[48px] pl-11 pr-12 py-2.5 text-base font-mono-tabular bg-[#F7F5F0] border rounded-2xl focus:outline-none focus:ring-2 focus:bg-white transition-colors ${
                           passcodeError
                             ? 'border-rose-400 focus:ring-rose-200 text-rose-800'
@@ -1016,7 +1074,7 @@ export function LoanStatusView({
                       <p className="text-xs font-medium text-rose-700">{passcodeError}</p>
                     ) : (
                       <p className="text-[11px] text-zinc-500">
-                        กรอกตัวเลข 13 หลักติดกันหรือมีขีดคั่นได้ · ข้อมูลส่วนตัวของคุณถูกปกป้องด้วยการเข้ารหัส
+                        กรอกตัวเลข 13 หลักติดกันโดยไม่ต้องใส่ขีด (-) · ข้อมูลส่วนตัวของคุณถูกปกป้องด้วยการเข้ารหัส
                       </p>
                     )}
                   </div>
@@ -1054,80 +1112,255 @@ export function LoanStatusView({
       {/* Mode 2: Staff Add / Update Customer & Banks (Strictly gated behind isStaffMode) */}
       {isStaffMode && effectiveSubMode === 'manage' && (
         <div className="space-y-5">
-          {/* Cloud Database Sync Status Bar */}
-          <div
-            className={`rounded-2xl border px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-              isCloudConnected
-                ? 'bg-[#FBF7EE] border-[#DFC996] text-[#14191F]'
-                : 'bg-amber-50 border-amber-300 text-amber-950'
-            }`}
-          >
-            <div className="flex items-start sm:items-center gap-2.5">
-              {isCloudConnected ? (
-                <Cloud className="w-5 h-5 text-[#9B7A36] shrink-0 mt-0.5 sm:mt-0" />
-              ) : (
-                <CloudOff className="w-5 h-5 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
-              )}
-              <div className="text-xs leading-relaxed">
-                {isCloudConnected ? (
-                  <>
-                    <span className="font-semibold text-[#14191F]">
-                      บันทึกลงฐานข้อมูลกลางเรียลไทม์แล้ว
-                    </span>{' '}
-                    <span className="text-zinc-600">
-                      — ข้อมูลลูกค้าและสถานะธนาคารทุกเครื่องและหน้าค้นหาลูกค้ามองเห็นตรงกันทั้งหมด
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="font-semibold">
-                      ยังไม่เชื่อมต่อฐานข้อมูลกลาง (บันทึกเฉพาะในเครื่องนี้เท่านั้น)
-                    </span>{' '}
-                    <span>
-                      — เชื่อมต่อบัญชี Google เพื่อให้ลูกค้าและทีมงานทุกเครื่องมองเห็นข้อมูลตรงกัน
-                    </span>
-                  </>
+          {/* Customer Database Storage & Location Panel */}
+          <div className="bg-[#FFFEFC] border border-[#E4DFD3] rounded-3xl p-5 sm:p-6 shadow-[0_6px_22px_rgba(20,25,31,0.04)] space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-[#14191F] border border-[#C59B48]/40 text-[#E5C57B] flex items-center justify-center shrink-0">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-[#8A6820]">
+                    คลังฐานข้อมูลลูกค้า (Customer Database Storage)
+                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-[#14191F] font-display">
+                    พื้นที่เก็บข้อมูลลูกค้าและซิงค์สถานะแบบเรียลไทม์
+                  </h2>
+                  <p className="mt-1 text-xs text-zinc-600 leading-relaxed max-w-2xl">
+                    ข้อมูลทั้งหมดถูกจัดเก็บแยกเป็น 2 ส่วนอัตโนมัติบน Cloud Firestore:
+                    <span className="font-mono-tabular font-semibold text-[#14191F]"> loan_cases </span>
+                    (ข้อมูลฉบับเต็มเฉพาะเจ้าหน้าที่) และ
+                    <span className="font-mono-tabular font-semibold text-[#14191F]"> loan_public_status </span>
+                    (ข้อมูลที่ปิดบังชื่อและไม่มีราคา สำหรับหน้าค้นหาลูกค้าแบบเรียลไทม์)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  data-sound="custom"
+                  onClick={() => {
+                    playSuccessSound();
+                    const csv = loanCasesToCSV(loanCases, plots);
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `centro-customer-database-${new Date().toISOString().slice(0, 10)}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    setDbFeedback(`ส่งออกไฟล์ Excel/CSV เรียบร้อย (${loanCases.length} รายการ)`);
+                  }}
+                  className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-[#14191F] bg-[#F5F2EB] hover:bg-[#EAE4D7] border border-[#DFD8C8] rounded-xl cursor-pointer whitespace-nowrap"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#8A6820]" />
+                  ส่งออก CSV (Excel)
+                </button>
+
+                <button
+                  type="button"
+                  data-sound="custom"
+                  onClick={() => {
+                    playSuccessSound();
+                    const json = JSON.stringify(loanCases, null, 2);
+                    const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `centro-customer-db-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    setDbFeedback(`สำรองไฟล์ฐานข้อมูล JSON สำเร็จ (${loanCases.length} รายการ)`);
+                  }}
+                  className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-[#14191F] bg-[#F5F2EB] hover:bg-[#EAE4D7] border border-[#DFD8C8] rounded-xl cursor-pointer whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#8A6820]" />
+                  สำรองฐานข้อมูล (.json)
+                </button>
+
+                {onImportCases && (
+                  <label className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-[#14191F] bg-[#F5F2EB] hover:bg-[#EAE4D7] border border-[#DFD8C8] rounded-xl cursor-pointer whitespace-nowrap">
+                    <Upload className="w-3.5 h-3.5 text-[#8A6820]" />
+                    นำเข้าฐานข้อมูล (.json)
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = async () => {
+                          try {
+                            const parsed = JSON.parse(String(reader.result || '[]'));
+                            if (!Array.isArray(parsed)) {
+                              setDbFeedback('รูปแบบไฟล์ JSON ไม่ถูกต้อง (ต้องเป็นรายการลูกค้า)');
+                              return;
+                            }
+                            const sanitizedList = parsed
+                              .filter((item) => item && typeof item === 'object')
+                              .map((item) => sanitizeLoanCase(item));
+                            if (sanitizedList.length === 0) {
+                              setDbFeedback('ไม่พบรายการลูกค้าในไฟล์ที่เลือก');
+                              return;
+                            }
+                            const importedCount = await onImportCases(sanitizedList);
+                            playSuccessSound();
+                            setDbFeedback(`นำเข้าและซิงค์ข้อมูลลูกค้าสำเร็จ ${importedCount} รายการ`);
+                          } catch {
+                            playErrorSound();
+                            setDbFeedback('ไม่สามารถอ่านไฟล์ JSON ได้ กรุณาตรวจสอบไฟล์อีกครั้ง');
+                          }
+                        };
+                        reader.readAsText(file, 'utf-8');
+                      }}
+                    />
+                  </label>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {isCloudConnected ? (
-                onSyncAllToCloud && (
-                  <button
-                    type="button"
-                    data-sound="custom"
-                    disabled={isSyncingCloud}
-                    onClick={() => {
-                      playClickSound();
-                      void onSyncAllToCloud();
-                    }}
-                    className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-[#14191F] bg-white hover:bg-[#F3ECD9] border border-[#D5BE84] rounded-xl cursor-pointer transition-colors disabled:opacity-60"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
-                    {isSyncingCloud
-                      ? 'กำลังซิงค์...'
-                      : pendingSyncCount > 0
-                      ? `ซิงค์ขึ้นฐานข้อมูลกลาง (${pendingSyncCount})`
-                      : 'ซิงค์ข้อมูลทั้งหมดอีกครั้ง'}
-                  </button>
-                )
-              ) : (
-                onConnectCloud && (
-                  <button
-                    type="button"
-                    data-sound="custom"
-                    onClick={() => {
-                      playClickSound();
-                      onConnectCloud();
-                    }}
-                    className="min-h-[40px] inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer transition-colors shadow-2xs"
-                  >
-                    <Cloud className="w-3.5 h-3.5" />
-                    เชื่อมต่อ Google เพื่อบันทึกลงฐานข้อมูลกลาง
-                  </button>
-                )
-              )}
+            {dbFeedback && (
+              <div className="px-3.5 py-2 rounded-xl bg-[#FBF7EE] border border-[#DFC996] text-xs font-medium text-[#8A6820] flex items-center justify-between gap-2">
+                <span>{dbFeedback}</span>
+                <button
+                  type="button"
+                  onClick={() => setDbFeedback(null)}
+                  aria-label="ปิดข้อความแจ้งเตือน"
+                  className="p-1 text-zinc-500 hover:text-zinc-900 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Storage Targets Breakdown + Cloud Connection Bar */}
+            {(() => {
+              const dbInfo = getDatabaseStorageInfo();
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 text-xs">
+                  <div className="p-3.5 rounded-2xl bg-[#FAF8F4] border border-[#E4DFD3]">
+                    <div className="flex items-center gap-1.5 text-zinc-500 font-medium">
+                      <Cloud className="w-3.5 h-3.5 text-[#8A6820]" />
+                      <span>Cloud Firestore Database</span>
+                    </div>
+                    <div className="mt-1 font-mono-tabular font-semibold text-[#14191F] truncate" title={dbInfo.databaseId}>
+                      {dbInfo.databaseId}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500 font-mono-tabular">
+                      Project: {dbInfo.projectId}
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#FAF8F4] border border-[#E4DFD3]">
+                    <div className="flex items-center gap-1.5 text-zinc-500 font-medium">
+                      <Lock className="w-3.5 h-3.5 text-[#8A6820]" />
+                      <span>Collection ฉบับเต็ม & ค้นหาลูกค้า</span>
+                    </div>
+                    <div className="mt-1 font-mono-tabular font-semibold text-[#14191F]">
+                      {dbInfo.collections.customerPrivate} · {dbInfo.collections.customerPublic}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500 tabular-nums">
+                      บันทึกแล้ว {loanCases.length} ลูกค้า · อัปเดตเรียลไทม์ทุกเครื่อง
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#FAF8F4] border border-[#E4DFD3]">
+                    <div className="flex items-center gap-1.5 text-zinc-500 font-medium">
+                      <HardDrive className="w-3.5 h-3.5 text-[#8A6820]" />
+                      <span>สำรองข้อมูลออฟไลน์ (Local Cache)</span>
+                    </div>
+                    <div className="mt-1 font-mono-tabular font-semibold text-[#14191F]">
+                      {isCloudConnected ? 'เชื่อมต่อฐานข้อมูลกลางแล้ว' : 'โหมดเครื่องนี้ (รอซิงค์)'}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500 tabular-nums">
+                      รอซิงค์ขึ้นคลาวด์ {pendingSyncCount} รายการ
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div
+              className={`rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                isCloudConnected
+                  ? 'bg-[#FBF7EE] border-[#DFC996] text-[#14191F]'
+                  : 'bg-amber-50 border-amber-300 text-amber-950'
+              }`}
+            >
+              <div className="flex items-start sm:items-center gap-2.5">
+                {isCloudConnected ? (
+                  <Cloud className="w-4 h-4 text-[#9B7A36] shrink-0 mt-0.5 sm:mt-0" />
+                ) : (
+                  <CloudOff className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+                )}
+                <div className="text-xs leading-relaxed">
+                  {isCloudConnected ? (
+                    <>
+                      <span className="font-semibold text-[#14191F]">
+                        ฐานข้อมูลกลางออนไลน์เรียลไทม์
+                      </span>{' '}
+                      <span className="text-zinc-600">
+                        — ทุกการเพิ่มหรืออัปเดตสถานะธนาคารจะส่งไปแสดงที่หน้าค้นหาลูกค้าทันทีแบบเรียลไทม์
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-semibold">
+                        ยังไม่เชื่อมต่อบัญชี Google (เก็บในเครื่องนี้ชั่วคราว)
+                      </span>{' '}
+                      <span>
+                        — เชื่อมต่อบัญชี Google เพื่อให้ฐานข้อมูลลูกค้าซิงค์ข้ามเครื่องและค้นหาออนไลน์ได้
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {isCloudConnected ? (
+                  onSyncAllToCloud && (
+                    <button
+                      type="button"
+                      data-sound="custom"
+                      disabled={isSyncingCloud}
+                      onClick={() => {
+                        playClickSound();
+                        void onSyncAllToCloud();
+                      }}
+                      className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-[#14191F] bg-white hover:bg-[#F3ECD9] border border-[#D5BE84] rounded-xl cursor-pointer transition-colors disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                      {isSyncingCloud
+                        ? 'กำลังซิงค์...'
+                        : pendingSyncCount > 0
+                        ? `ซิงค์ขึ้นฐานข้อมูลกลาง (${pendingSyncCount})`
+                        : 'ซิงค์ข้อมูลทั้งหมดอีกครั้ง'}
+                    </button>
+                  )
+                ) : (
+                  onConnectCloud && (
+                    <button
+                      type="button"
+                      data-sound="custom"
+                      onClick={() => {
+                        playClickSound();
+                        onConnectCloud();
+                      }}
+                      className="min-h-[40px] inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <Cloud className="w-3.5 h-3.5" />
+                      เชื่อมต่อ Google เพื่อบันทึกลงฐานข้อมูลกลาง
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           </div>
 
@@ -1252,11 +1485,12 @@ export function LoanStatusView({
                     <input
                       type={showDraftIdCard ? 'text' : 'password'}
                       inputMode="numeric"
+                      autoComplete="off"
                       required
-                      maxLength={17}
+                      maxLength={13}
                       value={draftCustomerIdCard}
-                      onChange={(e) => setDraftCustomerIdCard(e.target.value)}
-                      placeholder="13 หลัก เช่น 1102001234567"
+                      onChange={(e) => setDraftCustomerIdCard(normalizeIdCardDigits(e.target.value))}
+                      placeholder="13 หลัก ไม่ต้องใส่ขีด เช่น 1102001234567"
                       className="w-full min-h-[44px] pl-3.5 pr-10 py-2 bg-[#F7F5F0] border border-[#DCD4C3] rounded-xl text-sm font-mono-tabular text-[#14191F] focus:outline-none focus:ring-2 focus:ring-[#C59B48]/40 focus:bg-white"
                     />
                     <button
@@ -1275,7 +1509,7 @@ export function LoanStatusView({
                   </div>
                   {normalizeIdCardDigits(draftCustomerIdCard).length === 13 && (
                     <span className="mt-1 block text-[11px] font-mono-tabular text-emerald-700">
-                      รูปแบบ: {formatIdCardDisplay(draftCustomerIdCard)}
+                      ครบ 13 หลัก: {formatIdCardDisplay(draftCustomerIdCard)}
                     </span>
                   )}
                 </div>

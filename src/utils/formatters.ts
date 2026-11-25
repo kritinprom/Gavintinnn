@@ -1,4 +1,4 @@
-import { PlotStatus, PlotUnit } from '../types/project';
+import { LoanCase, PlotStatus, PlotUnit } from '../types/project';
 
 export function formatTHB(amount: number): string {
   const hasDecimals = Math.abs(amount % 1) > 0.001;
@@ -296,6 +296,49 @@ export function plotsToCSV(plots: PlotUnit[]): string {
   return '\uFEFF' + [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
 }
 
+export function loanCasesToCSV(loanCases: LoanCase[], plots: PlotUnit[]): string {
+  const plotMap = new Map(plots.map((p) => [p.id, p]));
+  const header = [
+    'รหัสเคส',
+    'แปลง',
+    'บ้านเลขที่',
+    'แบบบ้าน',
+    'ชื่อลูกค้า',
+    'เบอร์โทร',
+    'เลขบัตรประชาชน',
+    'สถานะภาพรวม',
+    'จำนวนธนาคาร',
+    'รายละเอียดธนาคารและสถานะ',
+    'หมายเหตุ',
+  ];
+  const rows = loanCases.map((c) => {
+    const plot = plotMap.get(c.plotId);
+    const banksSummary = c.banks
+      .map(
+        (b) =>
+          `${b.bankName}: ${BANK_STATUS_LABELS[b.status] || b.status}${
+            b.approvedAmount > 0 ? ` (${b.approvedAmount} บ.)` : ''
+          }`
+      )
+      .join(' | ');
+    const esc = (val: string) => `"${(val || '').replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`;
+    return [
+      esc(c.caseId),
+      esc(c.plotId),
+      esc(plot?.houseNumber ?? ''),
+      esc(plot?.model ?? ''),
+      esc(c.customerName),
+      esc(c.customerPhone),
+      esc(c.customerIdCard),
+      esc(LOAN_OVERALL_STATUS_LABELS[c.overallStatus] || c.overallStatus),
+      String(c.banks.length),
+      esc(banksSummary),
+      esc(c.note),
+    ];
+  });
+  return '\uFEFF' + [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
+}
+
 import { BankApplicationStatus, LoanOverallStatus } from '../types/project';
 
 export const THAI_BANKS_PRESET: string[] = [
@@ -408,7 +451,7 @@ export function splitGraphemes(text: string): string[] {
 }
 
 export function stripThaiHonorific(rawName: string): string {
-  const trimmed = (rawName || '').trim().replace(/\s+/g, ' ');
+  const trimmed = (rawName || '').replace(/[\r\n]+/g, ' ').trim().replace(/\s+/g, ' ');
   const stripped = trimmed
     .replace(/^(คุณ|นาย|นางสาว|นาง|น\.ส\.|ด\.ช\.|ด\.ญ\.|ว่าที่ร้อยตรี|ดร\.|พ\.ต\.อ\.|ร\.ต\.อ\.)\s*/u, '')
     .trim();
@@ -418,14 +461,14 @@ export function stripThaiHonorific(rawName: string): string {
 export function getNamePrefix3(rawName: string): string {
   const cleaned = stripThaiHonorific(rawName);
   const graphemes = splitGraphemes(cleaned);
-  const prefix = graphemes.slice(0, 3).join('').toLowerCase().slice(0, 16);
+  const prefix = graphemes.slice(0, 3).join('').replace(/[\r\n]+/g, '').toLowerCase().slice(0, 16);
   return prefix || 'xxx';
 }
 
 export function maskCustomerName(rawName: string): string {
   const cleaned = stripThaiHonorific(rawName);
   const graphemes = splitGraphemes(cleaned);
-  const prefix = graphemes.slice(0, 3).join('').slice(0, 18);
+  const prefix = graphemes.slice(0, 3).join('').replace(/[\r\n]+/g, '').slice(0, 18);
   const safePrefix = prefix || 'xxx';
   return `${safePrefix}xxxx`.slice(0, 24);
 }
@@ -455,19 +498,17 @@ export function normalizeIdCardDigits(rawIdCard: string): string {
 }
 
 export function formatIdCardDisplay(rawIdCard: string): string {
-  const d = normalizeIdCardDigits(rawIdCard);
-  if (d.length !== 13) return d;
-  return `${d.slice(0, 1)}-${d.slice(1, 5)}-${d.slice(5, 10)}-${d.slice(10, 12)}-${d.slice(12)}`;
+  return normalizeIdCardDigits(rawIdCard);
 }
 
 export function maskIdCardNumber(rawIdCard: string): string {
   const d = normalizeIdCardDigits(rawIdCard);
   if (!d) return '';
   if (d.length === 13) {
-    return `${d.slice(0, 1)}-xxxx-xxxxx-xx-${d.slice(-1)}`;
+    return `${d.slice(0, 1)}xxxxxxxxxx${d.slice(-2)}`;
   }
   if (d.length >= 4) {
-    return `xxxx-xxxx-${d.slice(-2)}`;
+    return `xxxx${d.slice(-2)}`;
   }
   return 'xxxx';
 }
