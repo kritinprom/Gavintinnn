@@ -33,7 +33,8 @@ interface HeaderProps {
   soundEnabled: boolean;
   onToggleSound: () => void;
   musicEnabled: boolean;
-  onToggleMusic: () => void;
+  activeMusicLabel: string | null;
+  onOpenMusicHub: () => void;
   soldUnlocked: boolean;
   onRequestUnlock: () => void;
   onRelockSold: () => void;
@@ -52,7 +53,8 @@ export function Header({
   soundEnabled,
   onToggleSound,
   musicEnabled,
-  onToggleMusic,
+  activeMusicLabel,
+  onOpenMusicHub,
   soldUnlocked,
   onRequestUnlock,
   onRelockSold,
@@ -215,19 +217,26 @@ export function Header({
             <button
               type="button"
               data-sound="custom"
-              onClick={onToggleMusic}
-              title={musicEnabled ? 'ปิดเพลงบรรเลงเบาๆ' : 'เปิดเพลงบรรเลงเบาๆ'}
-              aria-label={musicEnabled ? 'ปิดเพลงบรรเลงเบาๆ' : 'เปิดเพลงบรรเลงเบาๆ'}
-              className={`inline-flex items-center justify-center gap-1.5 px-2.5 min-w-[44px] h-11 text-xs font-medium rounded-xl border transition-colors cursor-pointer shrink-0 active:scale-[0.98] whitespace-nowrap ${
-                musicEnabled
+              onClick={() => {
+                playClickSound();
+                onOpenMusicHub();
+              }}
+              title="เปิดคลังเพลง (บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · LISA · เพลงบรรเลง 20 เพลง)"
+              aria-label="เปิดคลังเพลง"
+              className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 min-w-[44px] h-11 text-xs font-medium rounded-xl border transition-colors cursor-pointer shrink-0 active:scale-[0.98] whitespace-nowrap ${
+                activeMusicLabel || musicEnabled
                   ? 'bg-[#FBF7EE] border-[#DFC996] text-[#8A6820] hover:bg-[#F5EBD4]'
-                  : 'bg-white border-[#E0D9CA] text-zinc-400 hover:text-zinc-600'
+                  : 'bg-white border-[#E0D9CA] text-zinc-500 hover:text-[#14191F]'
               }`}
             >
               <Music
-                className={`w-4 h-4 ${musicEnabled ? 'text-[#C59B48]' : 'text-zinc-400'}`}
+                className={`w-4 h-4 ${
+                  activeMusicLabel || musicEnabled ? 'text-[#C59B48]' : 'text-zinc-400'
+                }`}
               />
-              <span className="hidden sm:inline">{musicEnabled ? 'เพลงบรรเลง' : 'ปิดเพลง'}</span>
+              <span className="hidden sm:inline max-w-[125px] truncate">
+                {activeMusicLabel ? activeMusicLabel : 'เพลง & LISA'}
+              </span>
             </button>
 
             <button

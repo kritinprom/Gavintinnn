@@ -557,6 +557,30 @@ export function nextChristmasTrack(): LuxuryTrack {
   return track;
 }
 
+export function setChristmasTrackByIndex(index: number): LuxuryTrack {
+  const normalized =
+    ((Math.floor(index) % LUXURY_AMBIENT_PLAYLIST.length) + LUXURY_AMBIENT_PLAYLIST.length) %
+    LUXURY_AMBIENT_PLAYLIST.length;
+  trackIndex = normalized;
+  noteIndex = 0;
+  try {
+    localStorage.setItem(STORAGE_KEY_TRACK, String(trackIndex));
+  } catch {
+    // ignore
+  }
+  const track = getCurrentChristmasTrack();
+  notifyTrackListeners();
+
+  if (isPlaying && isMusicEnabled()) {
+    if (schedulerTimer !== null) {
+      window.clearTimeout(schedulerTimer);
+      schedulerTimer = null;
+    }
+    scheduleNextNote();
+  }
+  return track;
+}
+
 export function isMusicEnabled(): boolean {
   if (musicEnabledCache !== null) return musicEnabledCache;
   try {

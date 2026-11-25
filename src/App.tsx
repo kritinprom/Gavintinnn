@@ -33,11 +33,13 @@ import { Header } from './components/Header';
 import { HouseModelsView } from './components/HouseModelsView';
 import { LoanStatusView } from './components/LoanStatusView';
 import { MasterPlanViewer } from './components/MasterPlanViewer';
+import { MusicJukeboxModal } from './components/MusicJukeboxModal';
 import { UnitDirectoryTable } from './components/UnitDirectoryTable';
 import { UnitInspector } from './components/UnitInspector';
 import { UnlockModal } from './components/UnlockModal';
 import { WelcomeOverlay } from './components/WelcomeOverlay';
 import { DEFAULT_PLOTS } from './data/masterPlanPlots';
+import { VocalTrack } from './data/vocalPlaylist';
 import {
   auth,
   buildLoanCaseCreatePayload,
@@ -76,6 +78,7 @@ import {
   isMusicEnabled,
   LUXURY_AMBIENT_PLAYLIST,
   nextChristmasTrack,
+  setChristmasTrackByIndex,
   setMusicEnabledPref,
   startChristmasMusic,
   stopChristmasMusic,
@@ -226,6 +229,9 @@ export default function App() {
   const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => isSoundEnabled());
   const [musicEnabled, setMusicEnabledState] = useState<boolean>(() => isMusicEnabled());
   const [currentTrack, setCurrentTrack] = useState<ChristmasTrack>(() => getCurrentChristmasTrack());
+  const [isMusicHubOpen, setIsMusicHubOpen] = useState<boolean>(false);
+  const [activeVocalTrack, setActiveVocalTrack] = useState<VocalTrack | null>(null);
+  const [isVocalPlaying, setIsVocalPlaying] = useState<boolean>(false);
   const [firestoreFatalError, setFirestoreFatalError] = useState<Error | null>(null);
   const [soldUnlocked, setSoldUnlocked] = useState<boolean>(() => {
     try {
@@ -899,15 +905,15 @@ export default function App() {
     };
   }, []);
 
-  // Unlock and gently start soft ambient music on first user tap/click/keypress (Safari/iPadOS safe)
+  // Unlock and gently start soft ambient music on first user tap/click/keypress (unless vocal player is active)
   useEffect(() => {
-    if (!musicEnabled) {
+    if (!musicEnabled || activeVocalTrack) {
       stopChristmasMusic();
       return;
     }
 
     const handleFirstInteraction = () => {
-      if (isMusicEnabled()) {
+      if (isMusicEnabled() && !activeVocalTrack) {
         startChristmasMusic();
       }
     };
@@ -918,7 +924,7 @@ export default function App() {
       window.removeEventListener('pointerdown', handleFirstInteraction);
       window.removeEventListener('keydown', handleFirstInteraction);
     };
-  }, [musicEnabled]);
+  }, [musicEnabled, activeVocalTrack]);
 
   useEffect(() => {
     return subscribeChristmasTrack(setCurrentTrack);
@@ -939,12 +945,27 @@ export default function App() {
     setMusicEnabledState(next);
     if (next) {
       playToggleSound();
-      startChristmasMusic();
+      if (!activeVocalTrack) {
+        startChristmasMusic();
+      }
     } else {
       playCancelSound();
       stopChristmasMusic();
     }
   };
+
+  const handleStopAmbientOnly = useCallback(() => {
+    setMusicEnabledPref(false);
+    setMusicEnabledState(false);
+    stopChristmasMusic();
+  }, []);
+
+  const handleSelectAmbientTrack = useCallback((index: number) => {
+    setMusicEnabledPref(true);
+    setMusicEnabledState(true);
+    setChristmasTrackByIndex(index);
+    startChristmasMusic();
+  }, []);
 
   const handleNextTrack = () => {
     playToggleSound();
@@ -1466,7 +1487,12 @@ export default function App() {
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
           musicEnabled={musicEnabled}
-          onToggleMusic={handleToggleMusic}
+          activeMusicLabel={
+            activeVocalTrack
+              ? `${activeVocalTrack.title}${isVocalPlaying ? '' : ' (พัก)'}`
+              : null
+          }
+          onOpenMusicHub={() => setIsMusicHubOpen(true)}
           soldUnlocked={soldUnlocked}
           onRequestUnlock={() => {
             setUnlockModalMode('sold');
@@ -1633,12 +1659,30 @@ export default function App() {
                     <button
                       type="button"
                       data-sound="custom"
-                      onClick={handleNextTrack}
-                      title={`เปลี่ยนเพลง (${currentTrack.title} · ${currentTrack.thaiMood})`}
+                      onClick={() => {
+                        playClickSound();
+                        setIsMusicHubOpen(true);
+                      }}
+                      title="เลือกฟังเพลงบ้านของหัวใจ เพลงเกี่ยวกับบ้าน หรือเพลงใหม่ของ LISA"
                       className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-[#E5C57B] bg-white/8 hover:bg-white/16 border border-[#C59B48]/35 rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98]"
                     >
-                      <SkipForward className="w-3.5 h-3.5 shrink-0" />
-                      <span>{currentTrack.title}</span>
+                      <Music className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        {activeVocalTrack
+                          ? `กำลังเล่น: ${activeVocalTrack.title}`
+                          : 'เพลงบ้านของหัวใจ & LISA'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      data-sound="custom"
+                      onClick={handleNextTrack}
+                      title={`เปลี่ยนเพลงบรรเลง (${currentTrack.title} · ${currentTrack.thaiMood})`}
+                      className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-zinc-200 bg-white/8 hover:bg-white/16 border border-white/15 rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98]"
+                    >
+                      <SkipForward className="w-3.5 h-3.5 shrink-0 text-[#E5C57B]" />
+                      <span className="max-w-[160px] truncate">{currentTrack.title}</span>
                     </button>
                   </div>
                 </div>
@@ -1870,8 +1914,21 @@ export default function App() {
               )}
 
               <div>
-                <div className="text-xs font-semibold text-[#E5C57B] mb-3">เสียงบรรยากาศ & การตั้งค่า</div>
+                <div className="text-xs font-semibold text-[#E5C57B] mb-3">เสียงบรรยากาศ & คลังเพลง</div>
                 <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    data-sound="custom"
+                    onClick={() => {
+                      playClickSound();
+                      setIsMusicHubOpen(true);
+                    }}
+                    className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer transition-colors"
+                  >
+                    <Music className="w-3.5 h-3.5" />
+                    เลือกเพลงบ้านของหัวใจ & LISA (34 เพลง)
+                  </button>
+
                   <button
                     type="button"
                     data-sound="custom"
@@ -1883,7 +1940,7 @@ export default function App() {
                     }`}
                   >
                     <Music className={`w-3.5 h-3.5 ${musicEnabled ? 'text-[#E5C57B]' : ''}`} />
-                    {musicEnabled ? 'เพลงบรรเลง: เปิดอยู่' : 'เปิดเพลงบรรเลงเบาๆ'}
+                    {musicEnabled ? 'เพลงบรรเลง: เปิดอยู่' : 'เปิดเพลงบรรเลง'}
                   </button>
 
                   <button
@@ -1893,7 +1950,7 @@ export default function App() {
                     className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#E5C57B] bg-white/10 hover:bg-white/20 border border-[#C59B48]/30 rounded-xl cursor-pointer transition-colors"
                   >
                     <SkipForward className="w-3.5 h-3.5" />
-                    เปลี่ยนเพลง ({currentTrack.title})
+                    เปลี่ยนเพลงบรรเลง
                   </button>
 
                   {isStaffMode && (
@@ -1912,7 +1969,9 @@ export default function App() {
                 </div>
 
                 <p className="mt-2.5 text-[11px] text-zinc-400">
-                  กำลังเล่น: {currentTrack.title} · {currentTrack.thaiMood} ({LUXURY_AMBIENT_PLAYLIST.length} บทเพลง)
+                  {activeVocalTrack
+                    ? `กำลังเล่นเพลงมีคนร้อง: ${activeVocalTrack.title} · ${activeVocalTrack.artist}`
+                    : `เพลงบรรเลง: ${currentTrack.title} · ${currentTrack.thaiMood} (${LUXURY_AMBIENT_PLAYLIST.length} บทเพลง)`}
                 </p>
               </div>
             </div>
@@ -2075,6 +2134,22 @@ export default function App() {
             } else {
               setSoldUnlocked(true);
             }
+          }}
+        />
+
+        <MusicJukeboxModal
+          isOpen={isMusicHubOpen}
+          onClose={() => setIsMusicHubOpen(false)}
+          onOpen={() => setIsMusicHubOpen(true)}
+          isStaffMode={isStaffMode}
+          ambientEnabled={musicEnabled}
+          currentAmbientTrack={currentTrack}
+          onSelectAmbientTrack={handleSelectAmbientTrack}
+          onToggleAmbientMusic={handleToggleMusic}
+          onStopAmbientMusic={handleStopAmbientOnly}
+          onVocalActiveChange={(track, playing) => {
+            setActiveVocalTrack(track);
+            setIsVocalPlaying(playing);
           }}
         />
       </div>
