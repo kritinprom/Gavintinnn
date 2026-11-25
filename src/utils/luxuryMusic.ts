@@ -1,362 +1,12 @@
-export type LuxuryCategory =
-  | 'all'
-  | 'thai-chart'
-  | 'thai-chill'
-  | 'global-chart'
-  | 'global-pop';
+import {
+  LUXURY_CATEGORY_TABS,
+  LUXURY_PLAYLIST,
+  LuxuryCategory,
+  LuxuryTrack,
+} from '../data/hitPlaylist100';
 
-export interface LuxuryTrack {
-  id: string;
-  number: number;
-  title: string;
-  subtitle: string; // Artist display label
-  artist: string;
-  album: string;
-  category: Exclude<LuxuryCategory, 'all'>;
-  trackId: number;
-  previewUrl: string;
-  artworkUrl: string;
-  durationSec: number;
-  moodNote: string;
-}
-
-export const LUXURY_CATEGORY_TABS: { id: LuxuryCategory; label: string }[] = [
-  { id: 'all', label: 'ทั้งหมด (20)' },
-  { id: 'thai-chart', label: 'เพลงไทยติดชาร์ต (5)' },
-  { id: 'thai-chill', label: 'ไทยป๊อปฟังสบาย (5)' },
-  { id: 'global-chart', label: 'เพลงสากลติดกระแส (5)' },
-  { id: 'global-pop', label: 'สากลป๊อป & R&B ฮิต (5)' },
-];
-
-export const LUXURY_PLAYLIST: LuxuryTrack[] = [
-  // 1. เพลงไทยติดชาร์ต (5)
-  {
-    id: 'hit-01',
-    number: 1,
-    title: 'ซ่อน(ไม่)หา (Ghost)',
-    subtitle: 'Jeff Satur',
-    artist: 'Jeff Satur',
-    album: 'Ghost - Single',
-    category: 'thai-chart',
-    trackId: 1724685427,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/be/ea/9c/beea9cc5-2f4a-657a-cda1-5e5ef382ba7a/mzaf_6797589711112840217.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/2d/8a/7c/2d8a7c7b-5ebd-6f42-8300-69730a55a2eb/5054197954672.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เพลงฮิตติดชาร์ตอันดับ 1 ของ Jeff Satur น้ำเสียงทรงพลัง',
-  },
-  {
-    id: 'hit-02',
-    number: 2,
-    title: 'โต๊ะริม (Melt)',
-    subtitle: 'NONT TANONT',
-    artist: 'NONT TANONT',
-    album: 'โต๊ะริม (Melt) - Single',
-    category: 'thai-chart',
-    trackId: 1622714542,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f4/5f/f4/f45ff486-6fa0-9df5-9d58-8ed552c86140/mzaf_5412811150878921175.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/5d/70/fe/5d70fe6e-f3e4-c874-a2de-e4ecd186bf80/cover.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เพลงป๊อปอารมณ์ดีสุดฮิตจาก นนท์ ธนนท์',
-  },
-  {
-    id: 'hit-03',
-    number: 3,
-    title: 'ฝนตกไหม',
-    subtitle: 'Three Man Down',
-    artist: 'Three Man Down',
-    album: 'This City Won’t Be Lonely Anymore',
-    category: 'thai-chart',
-    trackId: 1792752632,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/34/d2/65/34d2659e-148d-c029-0cc8-60d75ca37f13/mzaf_12794166550202757517.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/fc/22/ba/fc22ba00-0d93-66cd-dce0-ded6923c8537/888332922777.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เพลงฮิตระดับร้อยล้านวิวของ Three Man Down',
-  },
-  {
-    id: 'hit-04',
-    number: 4,
-    title: 'เพื่อนเล่น ไม่เล่นเพื่อน (feat. MILLI)',
-    subtitle: 'Tilly Birds',
-    artist: 'Tilly Birds & MILLI',
-    album: 'It’s Gonna Be OK',
-    category: 'thai-chart',
-    trackId: 1792753812,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/90/b1/cf/90b1cffa-e581-488a-1978-77b61af4f9b1/mzaf_14460411884468388426.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/3a/d1/4c/3ad14c38-72fa-5cbc-558b-7ee6ef9d101e/888332916318.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'ที-ป๊อป/อัลเทอร์เนทีฟยอดฮิต จังหวะสนุกฟังติดหู',
-  },
-  {
-    id: 'hit-05',
-    number: 5,
-    title: 'วาดไว้ (Recall)',
-    subtitle: 'BOWKYLION',
-    artist: 'BOWKYLION',
-    album: 'วาดไว้ (Recall) - Single',
-    category: 'thai-chart',
-    trackId: 1829231896,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/14/66/49/1466491a-b745-525c-7b96-321b4fd231d0/mzaf_16914207157708959097.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/0f/0f/42/0f0f4249-8f24-a6e8-56e4-6ec088900d93/25UMGIM79865.rgb.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เพลงฮิตกินใจเสียงร้องละมุนจาก โบกี้ไลอ้อน',
-  },
-
-  // 2. ไทยป๊อปฟังสบาย (5)
-  {
-    id: 'hit-06',
-    number: 6,
-    title: 'ชอบตัวเองตอนอยู่กับเธอ (I Like Us)',
-    subtitle: 'BILLKIN',
-    artist: 'BILLKIN',
-    album: 'ชอบตัวเองตอนอยู่กับเธอ - Single',
-    category: 'thai-chill',
-    trackId: 1635564114,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/c7/69/c4/c769c412-77a9-781b-3326-1c3de343acc3/mzaf_3426441544729006461.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/7b/65/5b/7b655b08-2460-38c9-353b-47f4666b2a2f/22UMGIM78199.rgb.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'โซลป๊อปอบอุ่นหัวใจ จากเสียงร้องมีเสน่ห์ของบิวกิ้น',
-  },
-  {
-    id: 'hit-07',
-    number: 7,
-    title: "สายตาหลอกกันไม่ได้ (Eyes don't lie)",
-    subtitle: 'Ink Waruntorn',
-    artist: 'Ink Waruntorn',
-    album: "สายตาหลอกกันไม่ได้ (Eyes don't lie)",
-    category: 'thai-chill',
-    trackId: 1861516784,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/64/a6/db/64a6db06-8931-cd05-30a7-6ff976ed96ca/mzaf_1200240892676868907.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/90/c3/5b/90c35b5b-ba74-e3fb-1a0e-6ba03e914c93/0840102441345_Cover.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'ซินธ์ป๊อปเสียงใสชวนฝัน จาก อิ้งค์ วรันธร',
-  },
-  {
-    id: 'hit-08',
-    number: 8,
-    title: 'ใกล้ (Close)',
-    subtitle: 'SCRUBB',
-    artist: 'SCRUBB',
-    album: 'Club',
-    category: 'thai-chill',
-    trackId: 554571894,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/cb/bd/73/cbbd7357-98ab-bd5d-02a4-1401d541b115/mzaf_18293941087721276643.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/ff/2a/7b/ff2a7bb1-7993-c9e1-61ae-55414fcd48be/884977628104.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เพลงฮิตตลอดกาล ฟังกี่ครั้งก็อบอุ่นสบายใจ',
-  },
-  {
-    id: 'hit-09',
-    number: 9,
-    title: 'สลักจิต (feat. ดา เอ็นโดรฟิน)',
-    subtitle: 'Pop Pongkool',
-    artist: 'Pop Pongkool & Da Endorphine',
-    album: 'สลักจิต - Single',
-    category: 'thai-chill',
-    trackId: 1792747349,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/e6/6e/34/e66e34c2-c971-ef2c-2e0f-f8a99e220912/mzaf_7695861381642299193.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/8c/69/cb/8c69cba7-b440-a3b3-b9c0-8e409b8613f2/888332908481.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'ดูเอตระดับตำนาน ป๊อบ ปองกูล x ดา เอ็นโดรฟิน',
-  },
-  {
-    id: 'hit-10',
-    number: 10,
-    title: 'พบกันใหม่ (So Long)',
-    subtitle: 'Polycat',
-    artist: 'Polycat',
-    album: '80 Kisses',
-    category: 'thai-chill',
-    trackId: 1219179133,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/d7/db/c6/d7dbc6b7-df68-509b-393c-d2e7461e4782/mzaf_16441888389148470421.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/83/11/6f/83116f31-73a4-3df3-6c5f-6658aabbea49/cover.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เรโทรซินธ์ป๊อปสุดฮิตจาก Polycat',
-  },
-
-  // 3. เพลงสากลติดกระแส (5)
-  {
-    id: 'hit-11',
-    number: 11,
-    title: 'APT.',
-    subtitle: 'ROSÉ & Bruno Mars',
-    artist: 'ROSÉ & Bruno Mars',
-    album: 'rosie',
-    category: 'global-chart',
-    trackId: 1771105935,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/70/41/42/70414259-14f5-245e-bd79-93c80401d556/mzaf_8687698460653166345.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/14/66/2d14661b-345b-d0f3-4e86-56ef626e68aa/075679629203.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เมกะฮิตระดับโลก จังหวะสนุกสดใสจาก ROSÉ & Bruno Mars',
-  },
-  {
-    id: 'hit-12',
-    number: 12,
-    title: 'Die With A Smile',
-    subtitle: 'Lady Gaga & Bruno Mars',
-    artist: 'Lady Gaga & Bruno Mars',
-    album: 'Die With A Smile - Single',
-    category: 'global-chart',
-    trackId: 1762656732,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/07/6a/99/076a99ed-b946-431b-6f1f-54fa187ca5bd/mzaf_8102882277995122875.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/11/ae/f2/11aef294-f57c-bab9-c9fc-529162984e62/24UMGIM85348.rgb.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'บัลลาดระดับโลก เสียงประสานสุดหรูของ Lady Gaga & Bruno Mars',
-  },
-  {
-    id: 'hit-13',
-    number: 13,
-    title: 'Espresso',
-    subtitle: 'Sabrina Carpenter',
-    artist: 'Sabrina Carpenter',
-    album: 'Espresso - Single',
-    category: 'global-chart',
-    trackId: 1744253558,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/48/14/5f/48145fa9-a5b6-32a0-45e8-05af48e52b9c/mzaf_6315924685303002328.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/3a/09/fa/3a09fabd-7a71-d0d7-3e6a-7f3c4c89014e/24UMGIM32304.rgb.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'ป๊อปกรูฟติดหูอันดับ 1 ชาร์ตโลกจาก Sabrina Carpenter',
-  },
-  {
-    id: 'hit-14',
-    number: 14,
-    title: 'BIRDS OF A FEATHER',
-    subtitle: 'Billie Eilish',
-    artist: 'Billie Eilish',
-    album: 'HIT ME HARD AND SOFT',
-    category: 'global-chart',
-    trackId: 1739659142,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/34/31/d3/3431d34e-847f-5d66-df83-0bce688d997e/mzaf_18106743962423782018.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/92/9f/69/929f69f1-9977-3a44-d674-11f70c852d1b/24UMGIM36186.rgb.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เพลงฮิตยอดสตรีมสูงสุดจาก Billie Eilish',
-  },
-  {
-    id: 'hit-15',
-    number: 15,
-    title: 'Rockstar',
-    subtitle: 'LISA',
-    artist: 'LISA',
-    album: 'Alter Ego',
-    category: 'global-chart',
-    trackId: 1799316832,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2a/ce/ed/2aceed99-a73e-421e-89bd-7ad58a8a7c25/mzaf_17944082866403100247.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/88/f6/7f/88f67fd9-c010-e52a-d10e-f5781116b99a/196872937138.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'โกลบอลฮิตสุดเท่จาก ลิซ่า (LISA)',
-  },
-
-  // 4. สากลป๊อป & R&B ฮิต (5)
-  {
-    id: 'hit-16',
-    number: 16,
-    title: 'Cruel Summer',
-    subtitle: 'Taylor Swift',
-    artist: 'Taylor Swift',
-    album: 'Lover',
-    category: 'global-pop',
-    trackId: 1468058171,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/44/af/81/44af8168-9609-1b85-5048-ada08dceacf3/mzaf_1341699644335558812.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/49/3d/ab/493dab54-f920-9043-6181-80993b8116c9/19UMGIM53909.rgb.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เพลงป๊อปยอดนิยมจากอัลบั้ม Lover ของ Taylor Swift',
-  },
-  {
-    id: 'hit-17',
-    number: 17,
-    title: 'Leave The Door Open',
-    subtitle: 'Bruno Mars & Silk Sonic',
-    artist: 'Bruno Mars, Anderson .Paak & Silk Sonic',
-    album: 'An Evening with Silk Sonic',
-    category: 'global-pop',
-    trackId: 1611637849,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/2b/a4/4e/2ba44ec0-066f-146f-7d78-d92e146bd860/mzaf_13302332917246733732.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/4e/b2/25/4eb22575-99e3-8c06-7446-51a99add8b0f/075679754585.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'R&B ระดับรางวัลแกรมมี ละมุนหรูสไตล์ Silk Sonic',
-  },
-  {
-    id: 'hit-18',
-    number: 18,
-    title: 'Perfect',
-    subtitle: 'Ed Sheeran',
-    artist: 'Ed Sheeran',
-    album: '÷ (Divide)',
-    category: 'global-pop',
-    trackId: 1193701400,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/c7/ba/bc/c7babc66-f598-aaa6-bcf6-307281795817/mzaf_16337361235117168274.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/15/e6/e8/15e6e8a4-4190-6a8b-86c3-ab4a51b88288/190295851286.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'เพลงรักสุดคลาสสิกที่อบอุ่นลงตัวจาก Ed Sheeran',
-  },
-  {
-    id: 'hit-19',
-    number: 19,
-    title: 'Blinding Lights',
-    subtitle: 'The Weeknd',
-    artist: 'The Weeknd',
-    album: 'After Hours',
-    category: 'global-pop',
-    trackId: 1499378607,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/19/d6/60/19d660ff-e3a9-8377-15a3-ce4b28e89cac/mzaf_18422426156481158187.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/6f/bc/e6/6fbce6c4-c38c-72d8-4fd0-66cfff32f679/20UMGIM12176.rgb.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'ซินธ์เวฟฮิตอันดับ 1 ตลอดกาลของชาร์ต Billboard',
-  },
-  {
-    id: 'hit-20',
-    number: 20,
-    title: 'Attention',
-    subtitle: 'Charlie Puth',
-    artist: 'Charlie Puth',
-    album: 'Voicenotes',
-    category: 'global-pop',
-    trackId: 1293229677,
-    previewUrl:
-      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0b/76/e1/0b76e164-35b8-7fbb-a773-9832f3155532/mzaf_12020704327610118862.plus.aac.p.m4a',
-    artworkUrl:
-      'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/a8/e2/1b/a8e21b3b-9c8d-2974-2318-6bcd4c9d2370/075679884336.jpg/300x300bb.jpg',
-    durationSec: 30,
-    moodNote: 'ป๊อปเบสไลน์สุดคมจาก Charlie Puth',
-  },
-];
+export { LUXURY_CATEGORY_TABS, LUXURY_PLAYLIST };
+export type { LuxuryCategory, LuxuryTrack };
 
 export interface LuxuryEngineSnapshot {
   track: LuxuryTrack | null;
@@ -370,20 +20,112 @@ export interface LuxuryEngineSnapshot {
 
 type LuxuryEngineListener = (snapshot: LuxuryEngineSnapshot) => void;
 
-class HitMusicEngine {
-  private audio: HTMLAudioElement | null = null;
+interface YTPlayer {
+  loadVideoById: (videoId: string) => void;
+  cueVideoById: (videoId: string) => void;
+  playVideo: () => void;
+  pauseVideo: () => void;
+  stopVideo: () => void;
+  mute: () => void;
+  unMute: () => void;
+  isMuted: () => boolean;
+  setVolume: (vol: number) => void;
+  seekTo: (seconds: number, allowSeekAhead?: boolean) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+  getPlayerState: () => number;
+  getIframe: () => HTMLIFrameElement;
+  destroy: () => void;
+}
+
+interface YTGlobal {
+  Player: new (
+    elementId: string | HTMLElement,
+    options: {
+      height?: string | number;
+      width?: string | number;
+      videoId?: string;
+      playerVars?: Record<string, string | number>;
+      events?: {
+        onReady?: () => void;
+        onStateChange?: (event: { data: number }) => void;
+        onError?: (event: { data: number }) => void;
+      };
+    }
+  ) => YTPlayer;
+  PlayerState?: {
+    UNSTARTED: number;
+    ENDED: number;
+    PLAYING: number;
+    PAUSED: number;
+    BUFFERING: number;
+    CUED: number;
+  };
+}
+
+declare global {
+  interface Window {
+    YT?: YTGlobal;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+let ytApiPromise: Promise<YTGlobal | null> | null = null;
+
+function loadYouTubeIframeAPI(): Promise<YTGlobal | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  if (window.YT && window.YT.Player) {
+    return Promise.resolve(window.YT);
+  }
+  if (ytApiPromise) return ytApiPromise;
+
+  ytApiPromise = new Promise((resolve) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://www.youtube.com/iframe_api"]'
+    );
+    const prevReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof prevReady === 'function') prevReady();
+      resolve(window.YT ?? null);
+    };
+
+    if (!existing) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      tag.async = true;
+      tag.onerror = () => resolve(null);
+      document.head.appendChild(tag);
+    }
+
+    window.setTimeout(() => {
+      if (window.YT && window.YT.Player) {
+        resolve(window.YT);
+      }
+    }, 1500);
+  });
+
+  return ytApiPromise;
+}
+
+class YouTubeHitMusicEngine {
+  private player: YTPlayer | null = null;
+  private hostContainer: HTMLDivElement | null = null;
+  private playerReady = false;
+  private initializing = false;
   private track: LuxuryTrack | null = null;
   private playing = false;
   private muted = false;
   private volume = 0.65;
   private elapsedSec = 0;
-  private durationSec = 30;
+  private durationSec = 210;
   private waitingForGesture = false;
   private userStopped = false;
   private onTrackEndCallback: (() => void) | null = null;
   private gestureHandlerBound: (() => void) | null = null;
+  private progressTimerId: number | null = null;
+  private autoplayVerifyTimerId: number | null = null;
   private listeners = new Set<LuxuryEngineListener>();
-  private refreshedTrackIds = new Set<number>();
+  private errorAdvanceTimerId: number | null = null;
 
   public getSnapshot(): LuxuryEngineSnapshot {
     return {
@@ -410,85 +152,72 @@ class HitMusicEngine {
     this.listeners.forEach((fn) => fn(snap));
   }
 
-  private ensureAudio(): HTMLAudioElement | null {
-    if (typeof window === 'undefined') return null;
-    if (!this.audio) {
-      const el = new Audio();
-      el.preload = 'auto';
-      el.crossOrigin = 'anonymous';
-      el.volume = this.volume;
-      el.muted = this.muted;
-
-      el.addEventListener('timeupdate', () => {
-        this.elapsedSec = Number.isFinite(el.currentTime) ? el.currentTime : 0;
-        if (Number.isFinite(el.duration) && el.duration > 0) {
-          this.durationSec = Math.round(el.duration);
-        }
-        this.emit();
-      });
-
-      el.addEventListener('loadedmetadata', () => {
-        if (Number.isFinite(el.duration) && el.duration > 0) {
-          this.durationSec = Math.round(el.duration);
-          this.emit();
-        }
-      });
-
-      el.addEventListener('playing', () => {
-        if (!this.userStopped) {
-          this.playing = true;
-          this.waitingForGesture = false;
-          this.removeGestureListeners();
-          this.emit();
-        }
-      });
-
-      el.addEventListener('ended', () => {
-        this.elapsedSec = 0;
-        if (this.onTrackEndCallback) {
-          this.onTrackEndCallback();
-        }
-      });
-
-      el.addEventListener('error', () => {
-        if (!this.track || this.userStopped) return;
-        const currentTrack = this.track;
-        if (!this.refreshedTrackIds.has(currentTrack.trackId)) {
-          this.refreshedTrackIds.add(currentTrack.trackId);
-          void this.refreshAndReplay(currentTrack);
-        } else if (this.onTrackEndCallback) {
-          this.onTrackEndCallback();
-        }
-      });
-
-      this.audio = el;
+  /**
+   * Keeps a single non-interactive fixed iframe container inside viewport bounds
+   * so Chrome never suspends background audio and the document NEVER jumps/bounces.
+   */
+  private ensureHostElement(): HTMLDivElement | null {
+    if (typeof document === 'undefined') return null;
+    if (this.hostContainer && document.body.contains(this.hostContainer)) {
+      return this.hostContainer;
     }
-    return this.audio;
+    const wrapper = document.createElement('div');
+    wrapper.id = 'gavintin-yt-audio-host';
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.style.position = 'fixed';
+    wrapper.style.bottom = '8px';
+    wrapper.style.right = '8px';
+    wrapper.style.width = '200px';
+    wrapper.style.height = '112px';
+    wrapper.style.opacity = '0.001';
+    wrapper.style.pointerEvents = 'none';
+    wrapper.style.zIndex = '-1';
+    wrapper.style.overflow = 'hidden';
+
+    const inner = document.createElement('div');
+    inner.id = 'gavintin-yt-player-slot';
+    wrapper.appendChild(inner);
+    document.body.appendChild(wrapper);
+    this.hostContainer = wrapper;
+    return wrapper;
   }
 
-  private async refreshAndReplay(track: LuxuryTrack) {
-    try {
-      const res = await fetch(
-        `https://itunes.apple.com/lookup?id=${track.trackId}&country=th`
-      );
-      const data = (await res.json()) as {
-        results?: Array<{ previewUrl?: string }>;
-      };
-      const freshUrl = data.results?.[0]?.previewUrl;
-      if (freshUrl && this.track?.id === track.id && !this.userStopped) {
-        track.previewUrl = freshUrl;
-        const el = this.ensureAudio();
-        if (el) {
-          el.src = freshUrl;
-          void this.tryPlayElement(el);
-          return;
+  private startProgressPolling() {
+    this.stopProgressPolling();
+    this.progressTimerId = window.setInterval(() => {
+      if (!this.player || !this.playerReady || !this.playing) return;
+      try {
+        const cur = this.player.getCurrentTime();
+        const dur = this.player.getDuration();
+        let changed = false;
+        if (Number.isFinite(cur) && cur >= 0 && Math.abs(cur - this.elapsedSec) >= 0.4) {
+          this.elapsedSec = cur;
+          changed = true;
         }
+        if (Number.isFinite(dur) && dur > 5 && Math.round(dur) !== this.durationSec) {
+          this.durationSec = Math.round(dur);
+          changed = true;
+        }
+        if (changed) {
+          this.emit();
+        }
+      } catch {
+        // Ignore transient YouTube bridge errors while loading
       }
-    } catch {
-      // Ignore network fallback failure and step to next song
+    }, 500);
+  }
+
+  private stopProgressPolling() {
+    if (this.progressTimerId !== null) {
+      window.clearInterval(this.progressTimerId);
+      this.progressTimerId = null;
     }
-    if (this.onTrackEndCallback && !this.userStopped) {
-      this.onTrackEndCallback();
+  }
+
+  private clearAutoplayVerifyTimer() {
+    if (this.autoplayVerifyTimerId !== null) {
+      window.clearTimeout(this.autoplayVerifyTimerId);
+      this.autoplayVerifyTimerId = null;
     }
   }
 
@@ -523,55 +252,179 @@ class HitMusicEngine {
     });
   }
 
-  private tryPlayElement(el: HTMLAudioElement) {
-    el.muted = this.muted;
-    el.volume = this.volume;
-    try {
-      const playPromise = el.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
+  private async ensurePlayer(initialVideoId: string): Promise<void> {
+    if (this.player || this.initializing) return;
+    this.initializing = true;
+
+    const YT = await loadYouTubeIframeAPI();
+    if (!YT || !YT.Player) {
+      this.initializing = false;
+      return;
+    }
+
+    const host = this.ensureHostElement();
+    const slot = host?.querySelector('#gavintin-yt-player-slot') as HTMLElement | null;
+    if (!slot) {
+      this.initializing = false;
+      return;
+    }
+
+    this.player = new YT.Player(slot, {
+      width: 200,
+      height: 112,
+      videoId: initialVideoId,
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        iv_load_policy: 3,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+        origin: window.location.origin,
+      },
+      events: {
+        onReady: () => {
+          this.playerReady = true;
+          this.initializing = false;
+          try {
+            const iframe = this.player?.getIframe();
+            if (iframe) {
+              iframe.setAttribute('tabindex', '-1');
+              iframe.setAttribute('title', 'เครื่องเล่นเพลงฮิตประจำโครงการ');
+            }
+          } catch {
+            // Ignore
+          }
+
+          if (!this.userStopped && this.track) {
+            this.attemptPlayCurrentTrack();
+          }
+        },
+        onStateChange: (event) => {
+          const state = event.data;
+          // 0 = ENDED, 1 = PLAYING, 2 = PAUSED, 3 = BUFFERING, 5 = CUED
+          if (state === 1) {
+            this.clearAutoplayVerifyTimer();
             if (!this.userStopped) {
               this.playing = true;
-              this.waitingForGesture = false;
-              this.removeGestureListeners();
+              try {
+                const dur = this.player?.getDuration();
+                if (dur && Number.isFinite(dur) && dur > 5) {
+                  this.durationSec = Math.round(dur);
+                }
+                const mutedNow = this.player?.isMuted();
+                if (mutedNow && !this.muted) {
+                  // Playing muted waiting for gesture to unmute cleanly
+                  this.waitingForGesture = true;
+                  this.installGestureListeners();
+                } else {
+                  this.waitingForGesture = false;
+                  this.removeGestureListeners();
+                }
+              } catch {
+                this.waitingForGesture = false;
+              }
+              this.startProgressPolling();
               this.emit();
             }
-          })
-          .catch(() => {
-            if (!this.userStopped) {
-              this.waitingForGesture = true;
-              this.installGestureListeners();
-              this.emit();
+          } else if (state === 0) {
+            // Song finished completely -> play next hit song automatically
+            this.elapsedSec = 0;
+            if (!this.userStopped && this.onTrackEndCallback) {
+              this.onTrackEndCallback();
             }
-          });
+          } else if (state === 2 && !this.userStopped && !this.waitingForGesture) {
+            this.playing = false;
+            this.emit();
+          }
+        },
+        onError: () => {
+          if (this.userStopped) return;
+          if (this.errorAdvanceTimerId !== null) {
+            window.clearTimeout(this.errorAdvanceTimerId);
+          }
+          this.errorAdvanceTimerId = window.setTimeout(() => {
+            this.errorAdvanceTimerId = null;
+            if (!this.userStopped && this.onTrackEndCallback) {
+              this.onTrackEndCallback();
+            }
+          }, 450);
+        },
+      },
+    });
+  }
+
+  private attemptPlayCurrentTrack() {
+    if (!this.player || !this.playerReady || !this.track) return;
+    this.clearAutoplayVerifyTimer();
+
+    try {
+      this.player.setVolume(Math.round(this.volume * 100));
+      if (this.muted) {
+        this.player.mute();
+      } else {
+        this.player.unMute();
       }
+      this.player.playVideo();
     } catch {
-      this.waitingForGesture = true;
-      this.installGestureListeners();
-      this.emit();
+      // Fall through to check
     }
+
+    // Verify if unmuted autoplay succeeded; if blocked, wait for first gesture & keep muted playback buffered
+    this.autoplayVerifyTimerId = window.setTimeout(() => {
+      if (!this.player || !this.playerReady || this.userStopped) return;
+      try {
+        const st = this.player.getPlayerState();
+        if (st !== 1 && st !== 3) {
+          // Try muted autoplay so the song starts buffering/playing immediately, ready to unmute on first tap
+          this.player.mute();
+          this.player.playVideo();
+          this.waitingForGesture = true;
+          this.installGestureListeners();
+          this.emit();
+        }
+      } catch {
+        this.waitingForGesture = true;
+        this.installGestureListeners();
+        this.emit();
+      }
+    }, 950);
   }
 
   public unlockFromGesture() {
     if (this.userStopped) return;
-    const el = this.ensureAudio();
-    if (!el) return;
-
     if (!this.track) {
       this.track = LUXURY_PLAYLIST[0];
       this.durationSec = this.track.durationSec;
       this.elapsedSec = 0;
     }
 
-    if (el.src !== this.track.previewUrl) {
-      el.src = this.track.previewUrl;
-    }
-
     this.playing = true;
     this.waitingForGesture = false;
     this.removeGestureListeners();
-    this.tryPlayElement(el);
+
+    if (!this.player) {
+      void this.ensurePlayer(this.track.videoId);
+      this.emit();
+      return;
+    }
+
+    if (this.playerReady) {
+      try {
+        this.player.setVolume(Math.round(this.volume * 100));
+        if (this.muted) {
+          this.player.mute();
+        } else {
+          this.player.unMute();
+        }
+        this.player.playVideo();
+        this.startProgressPolling();
+      } catch {
+        // Ignore
+      }
+    }
     this.emit();
   }
 
@@ -580,39 +433,64 @@ class HitMusicEngine {
     if (onTrackEnd) {
       this.onTrackEndCallback = onTrackEnd;
     }
-    const el = this.ensureAudio();
-    if (!el) return;
-
     if (!this.track) {
       this.track = LUXURY_PLAYLIST[0];
       this.durationSec = this.track.durationSec;
       this.elapsedSec = 0;
     }
 
-    if (el.src !== this.track.previewUrl) {
-      el.src = this.track.previewUrl;
-    }
-
     this.playing = true;
-    this.tryPlayElement(el);
+    this.waitingForGesture = true;
+    this.installGestureListeners();
+
+    if (!this.player) {
+      void this.ensurePlayer(this.track.videoId);
+    } else if (this.playerReady) {
+      this.attemptPlayCurrentTrack();
+    }
     this.emit();
   }
 
   public start(track: LuxuryTrack, onTrackEnd?: () => void) {
     this.userStopped = false;
-    const el = this.ensureAudio();
-    if (!el) return;
-
     this.track = track;
     this.elapsedSec = 0;
     this.durationSec = track.durationSec;
     this.playing = true;
-    this.onTrackEndCallback = onTrackEnd ?? this.onTrackEndCallback;
+    this.waitingForGesture = false;
+    this.removeGestureListeners();
+    if (onTrackEnd) {
+      this.onTrackEndCallback = onTrackEnd;
+    }
 
-    el.pause();
-    el.src = track.previewUrl;
-    el.currentTime = 0;
-    this.tryPlayElement(el);
+    if (!this.player) {
+      void this.ensurePlayer(track.videoId);
+    } else if (this.playerReady) {
+      try {
+        this.player.setVolume(Math.round(this.volume * 100));
+        if (this.muted) {
+          this.player.mute();
+        } else {
+          this.player.unMute();
+        }
+        this.player.loadVideoById(track.videoId);
+        this.startProgressPolling();
+      } catch {
+        // Ignore
+      }
+    }
+    this.emit();
+  }
+
+  public seekTo(seconds: number) {
+    if (!this.player || !this.playerReady || !this.track) return;
+    const clamped = Math.max(0, Math.min(this.durationSec || 600, seconds));
+    this.elapsedSec = clamped;
+    try {
+      this.player.seekTo(clamped, true);
+    } catch {
+      // Ignore
+    }
     this.emit();
   }
 
@@ -621,8 +499,14 @@ class HitMusicEngine {
     this.playing = false;
     this.waitingForGesture = false;
     this.removeGestureListeners();
-    if (this.audio) {
-      this.audio.pause();
+    this.clearAutoplayVerifyTimer();
+    this.stopProgressPolling();
+    if (this.player && this.playerReady) {
+      try {
+        this.player.pauseVideo();
+      } catch {
+        // Ignore
+      }
     }
     this.emit();
   }
@@ -633,13 +517,26 @@ class HitMusicEngine {
       this.start(LUXURY_PLAYLIST[0], this.onTrackEndCallback ?? undefined);
       return;
     }
-    const el = this.ensureAudio();
-    if (!el) return;
-    if (el.src !== this.track.previewUrl) {
-      el.src = this.track.previewUrl;
-    }
     this.playing = true;
-    this.tryPlayElement(el);
+    this.waitingForGesture = false;
+    this.removeGestureListeners();
+
+    if (!this.player) {
+      void this.ensurePlayer(this.track.videoId);
+    } else if (this.playerReady) {
+      try {
+        this.player.setVolume(Math.round(this.volume * 100));
+        if (this.muted) {
+          this.player.mute();
+        } else {
+          this.player.unMute();
+        }
+        this.player.playVideo();
+        this.startProgressPolling();
+      } catch {
+        // Ignore
+      }
+    }
     this.emit();
   }
 
@@ -648,32 +545,56 @@ class HitMusicEngine {
     this.playing = false;
     this.waitingForGesture = false;
     this.removeGestureListeners();
-    if (this.audio) {
-      this.audio.pause();
-      this.audio.removeAttribute('src');
-      this.audio.load();
+    this.clearAutoplayVerifyTimer();
+    this.stopProgressPolling();
+    if (this.errorAdvanceTimerId !== null) {
+      window.clearTimeout(this.errorAdvanceTimerId);
+      this.errorAdvanceTimerId = null;
+    }
+    if (this.player && this.playerReady) {
+      try {
+        this.player.stopVideo();
+      } catch {
+        // Ignore
+      }
     }
     this.track = null;
     this.elapsedSec = 0;
-    this.durationSec = 30;
+    this.durationSec = 210;
     this.emit();
   }
 
   public setMuted(muted: boolean) {
     this.muted = muted;
-    if (this.audio) {
-      this.audio.muted = muted;
+    if (this.player && this.playerReady) {
+      try {
+        if (muted) {
+          this.player.mute();
+        } else {
+          this.player.unMute();
+          this.player.setVolume(Math.round(this.volume * 100));
+        }
+      } catch {
+        // Ignore
+      }
     }
     this.emit();
   }
 
   public setVolume(vol: number) {
     this.volume = Math.max(0, Math.min(1, vol));
-    if (this.audio) {
-      this.audio.volume = this.volume;
+    if (this.player && this.playerReady) {
+      try {
+        this.player.setVolume(Math.round(this.volume * 100));
+        if (!this.muted && this.playing) {
+          this.player.unMute();
+        }
+      } catch {
+        // Ignore
+      }
     }
     this.emit();
   }
 }
 
-export const luxuryMusicEngine = new HitMusicEngine();
+export const luxuryMusicEngine = new YouTubeHitMusicEngine();

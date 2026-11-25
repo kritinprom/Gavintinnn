@@ -263,7 +263,7 @@ export function Header({
                 playClickSound();
                 onOpenMusicHub();
               }}
-              title="เปิดคลังเพลงฮิตไทย & สากล (20 เพลง)"
+              title="เปิดคลังเพลงฮิตเต็มเพลง 100 เพลง (ไทย & สากล)"
               aria-label="เปิดคลังเพลงฮิตประจำโครงการ"
               className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 min-w-[44px] h-11 text-xs font-medium rounded-xl border transition-colors cursor-pointer shrink-0 active:scale-[0.98] whitespace-nowrap ${
                 activeMusicLabel
@@ -277,7 +277,7 @@ export function Header({
                 }`}
               />
               <span className="hidden sm:inline max-w-[125px] truncate">
-                {activeMusicLabel ? activeMusicLabel : 'เพลงฮิต (20 เพลง)'}
+                {activeMusicLabel ? activeMusicLabel : 'เพลงฮิต (100 เพลง)'}
               </span>
             </button>
 

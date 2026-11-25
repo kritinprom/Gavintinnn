@@ -353,10 +353,10 @@ export function MusicJukeboxModal({
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-base sm:text-lg font-bold font-display text-white truncate">
-                    Top 20 Hit Songs · เพลงฮิตไทย &amp; สากล
+                    Top 100 Hit Songs · เพลงฮิตเต็มเพลง (ไทย &amp; สากล)
                   </h2>
                   <p className="text-xs text-zinc-400 truncate">
-                    รวมเพลงฮิตยอดนิยม {LUXURY_PLAYLIST.length} เพลง เล่นต่อเนื่องอัตโนมัติ (T-Pop · ไทยป๊อป · Global Hits · R&amp;B)
+                    รวมเพลงฮิตฉบับเต็ม {LUXURY_PLAYLIST.length} เพลง เล่นต่อเนื่องอัตโนมัติ (T-Pop · ไทยป๊อป · Global Hits · R&amp;B)
                   </p>
                 </div>
               </div>
@@ -444,13 +444,13 @@ export function MusicJukeboxModal({
                   <p className="relative text-[11px] font-medium text-[#E5C57B] tracking-wide uppercase">
                     {activeTrack
                       ? waitingForGesture
-                        ? 'แตะเพื่อเปิดเพลงฮิต'
+                        ? 'แตะเพื่อเปิดเสียงเพลงฮิต'
                         : isPlaying
-                        ? 'Now Playing · Hit Song'
+                        ? 'Now Playing · Full Track'
                         : 'Paused'
                       : localAudioName
                       ? 'Local Audio File'
-                      : 'CENTRO Top 20 Hits'}
+                      : 'CENTRO Top 100 Hits'}
                   </p>
                 </div>
               ) : activeTrack?.artworkUrl ? (
@@ -516,10 +516,23 @@ export function MusicJukeboxModal({
                 )}
               </div>
 
-              {/* Progress Bar when open & track selected */}
+              {/* Progress Bar (Seekable for full-length songs) */}
               {isOpen && activeTrack && (
                 <div className="space-y-1.5">
-                  <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    role="slider"
+                    aria-label="เลื่อนเวลาเพลง"
+                    aria-valuemin={0}
+                    aria-valuemax={durationSec || activeTrack.durationSec}
+                    aria-valuenow={Math.round(elapsedSec)}
+                    tabIndex={0}
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                      luxuryMusicEngine.seekTo(ratio * (durationSec || activeTrack.durationSec));
+                    }}
+                    className="w-full h-2 rounded-full bg-white/15 overflow-hidden cursor-pointer group"
+                  >
                     <div
                       className="h-full bg-gradient-to-r from-[#C59B48] to-[#F0D48F] rounded-full transition-all duration-300"
                       style={{ width: `${progressPct}%` }}
