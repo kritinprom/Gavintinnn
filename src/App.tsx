@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronUp, Home, Landmark, Music, SkipForward, X } from 'lucide-react';
+import {
+  ArrowRight,
+  ChevronUp,
+  Cloud,
+  CloudOff,
+  Home,
+  Landmark,
+  Music,
+  RefreshCw,
+  SkipForward,
+  X,
+} from 'lucide-react';
 import { MotionConfig } from 'motion/react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import {
@@ -12,6 +23,7 @@ import {
   setDoc,
   where,
   writeBatch,
+  WriteBatch,
 } from 'firebase/firestore';
 import { ChristmasHouseScene } from './components/ChristmasHouseScene';
 import { CompareView } from './components/CompareView';
@@ -34,7 +46,9 @@ import {
   buildLoanPublicStatusUpdatePayload,
   buildPlotOverridePayload,
   buildUserWorkspacePayload,
+  checkIsAdminRecord,
   db,
+  fetchExistingPublicStatusesForSync,
   handleFirestoreError,
   OperationType,
   sanitizeHouseNumber,
@@ -88,9 +102,40 @@ const STORAGE_KEY_OVERLAY_MODE = 'centro_rama2_overlay_mode_v1';
 const STORAGE_KEY_SELECTED_PLOT = 'centro_rama2_selected_plot_v1';
 const STORAGE_KEY_FILTERS = 'centro_rama2_filters_v1';
 const STORAGE_KEY_LOAN_CASES = 'centro_rama2_loan_cases_v1';
+const STORAGE_KEY_DIRTY_PLOTS = 'centro_rama2_dirty_plots_v1';
+const STORAGE_KEY_DIRTY_LOANS = 'centro_rama2_dirty_loans_v1';
 const SESSION_KEY_SOLD_UNLOCKED = 'centro_rama2_sold_unlocked_v1';
 const SESSION_KEY_STAFF_UNLOCKED = 'centro_rama2_staff_unlocked_v1';
 const BROADCAST_CHANNEL_NAME = 'centro_rama2_realtime_sync_v1';
+
+function loadStringArray(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((v): v is string => typeof v === 'string');
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+async function runChunkedBatch(
+  ops: Array<(batch: WriteBatch) => void>,
+  chunkSize = 350
+): Promise<void> {
+  for (let i = 0; i < ops.length; i += chunkSize) {
+    const batch = writeBatch(db);
+    const slice = ops.slice(i, i + chunkSize);
+    for (const op of slice) {
+      op(batch);
+    }
+    await batch.commit();
+  }
+}
 
 const INITIAL_FILTERS: PlotFilterState = {
   search: '',
@@ -202,7 +247,13 @@ export default function App() {
   // Firebase Auth & Realtime Sync state
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState<boolean>(false);
-  const [cloudNotice, setCloudNotice] = useState<string | null>(null);
+  const [isAdminDocMember, setIsAdminDocMember] = useState<boolean>(false);
+  const [adminCheckedUid, setAdminCheckedUid] = useState<string | null>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
+  const [cloudNotice, setCloudNotice] = useState<{
+    msg: string;
+    tone: 'success' | 'warning';
+  } | null>(null);
 
   const [overrides, setOverrides] = useState<Record<string, Partial<PlotUnit>>>(() => {
     try {
@@ -224,6 +275,12 @@ export default function App() {
 
   const [loanCases, setLoanCases] = useState<LoanCase[]>(loadSavedLoanCases);
   const [localPublicStatuses, setLocalPublicStatuses] = useState<LoanPublicStatus[]>([]);
+  const [dirtyPlotIds, setDirtyPlotIds] = useState<string[]>(() =>
+    loadStringArray(STORAGE_KEY_DIRTY_PLOTS)
+  );
+  const [dirtyLoanCaseIds, setDirtyLoanCaseIds] = useState<string[]>(() =>
+    loadStringArray(STORAGE_KEY_DIRTY_LOANS)
+  );
 
   const broadcastRef = useRef<BroadcastChannel | null>(null);
   const isApplyingRemoteWorkspaceRef = useRef(false);
@@ -231,23 +288,41 @@ export default function App() {
   const hasHydratedCloudLoansRef = useRef(false);
   const cloudLoanCaseIdsRef = useRef<Set<string>>(new Set());
 
-  const showTimedNotice = useCallback((msg: string) => {
-    setCloudNotice(msg);
-    window.setTimeout(() => {
-      setCloudNotice((curr) => (curr === msg ? null : curr));
-    }, 3500);
-  }, []);
+  const showTimedNotice = useCallback(
+    (msg: string, tone: 'success' | 'warning' = 'success') => {
+      setCloudNotice({ msg, tone });
+      window.setTimeout(() => {
+        setCloudNotice((curr) => (curr?.msg === msg ? null : curr));
+      }, 4200);
+    },
+    []
+  );
 
-  // Auth listener
+  // Auth listener & /admins/{uid} check
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthReady(true);
-      if (!currentUser) {
-        hasHydratedCloudOverridesRef.current = false;
-        hasHydratedCloudLoansRef.current = false;
-        cloudLoanCaseIdsRef.current.clear();
+      hasHydratedCloudOverridesRef.current = false;
+      hasHydratedCloudLoansRef.current = false;
+      cloudLoanCaseIdsRef.current.clear();
+
+      if (!currentUser || !currentUser.emailVerified) {
+        setIsAdminDocMember(false);
+        setAdminCheckedUid(null);
+        return;
       }
+
+      void checkIsAdminRecord(currentUser.uid)
+        .then((isMember) => {
+          setIsAdminDocMember(isMember);
+          setAdminCheckedUid(currentUser.uid);
+        })
+        .catch((err) => {
+          setIsAdminDocMember(false);
+          setAdminCheckedUid(currentUser.uid);
+          setFirestoreFatalError(err as Error);
+        });
     });
     return () => unsub();
   }, []);
@@ -262,7 +337,32 @@ export default function App() {
     loanCasesRef.current = loanCases;
   }, [loanCases]);
 
-  // Real-time Firestore listener for shared plot overrides, loan cases & user workspace
+  const dirtyPlotIdsRef = useRef(dirtyPlotIds);
+  useEffect(() => {
+    dirtyPlotIdsRef.current = dirtyPlotIds;
+    try {
+      localStorage.setItem(STORAGE_KEY_DIRTY_PLOTS, JSON.stringify(dirtyPlotIds));
+    } catch {
+      // ignore
+    }
+  }, [dirtyPlotIds]);
+
+  const dirtyLoanCaseIdsRef = useRef(dirtyLoanCaseIds);
+  useEffect(() => {
+    dirtyLoanCaseIdsRef.current = dirtyLoanCaseIds;
+    try {
+      localStorage.setItem(STORAGE_KEY_DIRTY_LOANS, JSON.stringify(dirtyLoanCaseIds));
+    } catch {
+      // ignore
+    }
+  }, [dirtyLoanCaseIds]);
+
+  const isCloudConnected = Boolean(user && user.emailVerified);
+  const isVerifiedAdmin = Boolean(
+    user && user.emailVerified && (user.email === 'kritin.prom@gmail.com' || isAdminDocMember)
+  );
+
+  // Real-time Firestore listener for shared plot overrides & user workspace
   useEffect(() => {
     if (!authReady || !user || !user.emailVerified) return;
 
@@ -290,37 +390,65 @@ export default function App() {
           cloudOverrides[plotId] = patch;
         });
 
-        // On first hydration after sign-in, push any local edits not yet in cloud
+        // On first hydration after sign-in, push any local/dirty edits to cloud
         if (!hasHydratedCloudOverridesRef.current) {
           hasHydratedCloudOverridesRef.current = true;
           const localCurrent = overridesRef.current;
+          const dirtySet = new Set(dirtyPlotIdsRef.current);
           const unsyncedKeys = Object.keys(localCurrent).filter(
-            (k) => !cloudOverrides[k]
+            (k) => dirtySet.has(k) || !cloudOverrides[k]
           );
+
           if (unsyncedKeys.length > 0) {
-            const merged = { ...localCurrent, ...cloudOverrides };
-            setOverrides(merged);
-            const batch = writeBatch(db);
-            let hasBatchWrites = false;
+            const merged = { ...cloudOverrides };
+            const batchOps: Array<(batch: WriteBatch) => void> = [];
+            const pushedKeys: string[] = [];
+
             for (const k of unsyncedKeys) {
               const basePlot = DEFAULT_PLOTS.find((p) => p.id === k);
               if (!basePlot) continue;
-              if (basePlot.status === 'sold' && user.email !== 'kritin.prom@gmail.com') {
+              const cloudStatus = cloudOverrides[k]?.status ?? basePlot.status;
+              if (
+                cloudStatus === 'sold' &&
+                user.email !== 'kritin.prom@gmail.com' &&
+                !isAdminDocMember
+              ) {
                 continue;
               }
               const mergedPlot: PlotUnit = { ...basePlot, ...localCurrent[k] };
-              batch.set(
-                doc(db, 'plot_overrides', k),
-                buildPlotOverridePayload(mergedPlot, user.uid)
-              );
-              hasBatchWrites = true;
+              merged[k] = localCurrent[k];
+              batchOps.push((batch) => {
+                batch.set(
+                  doc(db, 'plot_overrides', k),
+                  buildPlotOverridePayload(mergedPlot, user.uid)
+                );
+              });
+              pushedKeys.push(k);
             }
-            if (hasBatchWrites) {
-              void batch.commit().catch((err) =>
-                handleFirestoreError(err, OperationType.WRITE, plotOverridesPath)
-              );
+
+            if (batchOps.length > 0) {
+              setOverrides(merged);
+              try {
+                localStorage.setItem(STORAGE_KEY_OVERRIDES, JSON.stringify(merged));
+              } catch {
+                // ignore
+              }
+              void runChunkedBatch(batchOps)
+                .then(() => {
+                  setDirtyPlotIds((prev) => prev.filter((id) => !pushedKeys.includes(id)));
+                  showTimedNotice(
+                    `ซิงค์ข้อมูลแปลงที่แก้ไขไว้ (${pushedKeys.length} แปลง) ขึ้นฐานข้อมูลกลางเรียบร้อย`
+                  );
+                })
+                .catch((err) => {
+                  try {
+                    handleFirestoreError(err, OperationType.WRITE, plotOverridesPath);
+                  } catch (wrapped) {
+                    setFirestoreFatalError(wrapped as Error);
+                  }
+                });
+              return;
             }
-            return;
           }
         }
 
@@ -332,85 +460,11 @@ export default function App() {
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, plotOverridesPath);
-      }
-    );
-
-    const loanCasesPath = 'loan_cases';
-    const isAdminUser = user.email === 'kritin.prom@gmail.com';
-    const loanCasesSource = isAdminUser
-      ? collection(db, loanCasesPath)
-      : query(collection(db, loanCasesPath), where('ownerId', '==', user.uid));
-
-    const unsubLoans = onSnapshot(
-      loanCasesSource,
-      (snapshot) => {
-        const cloudCases: LoanCase[] = [];
-        const cloudIds = new Set<string>();
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          const updatedMillis =
-            typeof data.updatedAt?.toMillis === 'function'
-              ? data.updatedAt.toMillis()
-              : Date.now();
-          const sanitized = sanitizeLoanCase({
-            caseId: docSnap.id,
-            ownerId: typeof data.ownerId === 'string' ? data.ownerId : user.uid,
-            plotId: data.plotId,
-            customerName: data.customerName,
-            customerPhone: typeof data.customerPhone === 'string' ? data.customerPhone : '',
-            customerIdCard: typeof data.customerIdCard === 'string' ? data.customerIdCard : '',
-            overallStatus: data.overallStatus,
-            note: data.note,
-            banks: Array.isArray(data.banks) ? data.banks : [],
-            updatedAtMs: updatedMillis,
-          });
-          cloudCases.push(sanitized);
-          cloudIds.add(sanitized.caseId);
-        });
-        cloudLoanCaseIdsRef.current = cloudIds;
-
-        if (!hasHydratedCloudLoansRef.current) {
-          hasHydratedCloudLoansRef.current = true;
-          const localCases = loanCasesRef.current;
-          const unsyncedLocal = localCases.filter((lc) => !cloudIds.has(lc.caseId));
-          if (unsyncedLocal.length > 0) {
-            const mergedCases = [...unsyncedLocal, ...cloudCases];
-            setLoanCases(mergedCases);
-            void (async () => {
-              const batch = writeBatch(db);
-              for (const lc of unsyncedLocal) {
-                const basePlot = DEFAULT_PLOTS.find((p) => p.id === lc.plotId);
-                const mergedPlot = basePlot
-                  ? { ...basePlot, ...(overridesRef.current[basePlot.id] ?? {}) }
-                  : undefined;
-                batch.set(
-                  doc(db, loanCasesPath, lc.caseId),
-                  buildLoanCaseCreatePayload(lc, user.uid)
-                );
-                batch.set(
-                  doc(db, 'loan_public_status', lc.caseId),
-                  await buildLoanPublicStatusCreatePayload(lc, mergedPlot, user.uid)
-                );
-                cloudLoanCaseIdsRef.current.add(lc.caseId);
-              }
-              await batch.commit();
-            })().catch((err) =>
-              handleFirestoreError(err, OperationType.WRITE, loanCasesPath)
-            );
-            return;
-          }
-        }
-
-        setLoanCases(cloudCases);
         try {
-          localStorage.setItem(STORAGE_KEY_LOAN_CASES, JSON.stringify(cloudCases));
-        } catch {
-          // ignore
+          handleFirestoreError(error, OperationType.LIST, plotOverridesPath);
+        } catch (wrapped) {
+          setFirestoreFatalError(wrapped as Error);
         }
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, loanCasesPath);
       }
     );
 
@@ -455,16 +509,203 @@ export default function App() {
         }, 0);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, workspacePath);
+        try {
+          handleFirestoreError(error, OperationType.GET, workspacePath);
+        } catch (wrapped) {
+          setFirestoreFatalError(wrapped as Error);
+        }
       }
     );
 
     return () => {
       unsubPlots();
-      unsubLoans();
       unsubWorkspace();
     };
-  }, [authReady, user]);
+  }, [authReady, user, isAdminDocMember, showTimedNotice]);
+
+  // Real-time Firestore listener for loan_cases + automatic backfill of loan_public_status
+  useEffect(() => {
+    if (!authReady || !user || !user.emailVerified || adminCheckedUid !== user.uid) return;
+
+    const loanCasesPath = 'loan_cases';
+    const isAdminUser = user.email === 'kritin.prom@gmail.com' || isAdminDocMember;
+    const loanCasesSource = isAdminUser
+      ? collection(db, loanCasesPath)
+      : query(collection(db, loanCasesPath), where('ownerId', '==', user.uid));
+
+    const unsubLoans = onSnapshot(
+      loanCasesSource,
+      (snapshot) => {
+        const cloudCases: LoanCase[] = [];
+        const cloudIds = new Set<string>();
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          const updatedMillis =
+            typeof data.updatedAt?.toMillis === 'function'
+              ? data.updatedAt.toMillis()
+              : Date.now();
+          const sanitized = sanitizeLoanCase({
+            caseId: docSnap.id,
+            ownerId: typeof data.ownerId === 'string' ? data.ownerId : user.uid,
+            plotId: data.plotId,
+            customerName: data.customerName,
+            customerPhone: typeof data.customerPhone === 'string' ? data.customerPhone : '',
+            customerIdCard: typeof data.customerIdCard === 'string' ? data.customerIdCard : '',
+            overallStatus: data.overallStatus,
+            note: data.note,
+            banks: Array.isArray(data.banks) ? data.banks : [],
+            updatedAtMs: updatedMillis,
+          });
+          cloudCases.push(sanitized);
+          cloudIds.add(sanitized.caseId);
+        });
+        cloudLoanCaseIdsRef.current = cloudIds;
+
+        if (!hasHydratedCloudLoansRef.current) {
+          hasHydratedCloudLoansRef.current = true;
+          const localCases = loanCasesRef.current;
+          const dirtySet = new Set(dirtyLoanCaseIdsRef.current);
+          const unsyncedLocal = localCases.filter(
+            (lc) => !cloudIds.has(lc.caseId) || dirtySet.has(lc.caseId)
+          );
+          const unsyncedIds = new Set(unsyncedLocal.map((lc) => lc.caseId));
+          const mergedCases = [
+            ...unsyncedLocal,
+            ...cloudCases.filter((cc) => !unsyncedIds.has(cc.caseId)),
+          ];
+
+          if (unsyncedLocal.length > 0) {
+            setLoanCases(mergedCases);
+            try {
+              localStorage.setItem(STORAGE_KEY_LOAN_CASES, JSON.stringify(mergedCases));
+            } catch {
+              // ignore
+            }
+          }
+
+          void (async () => {
+            const existingPublicMap = await fetchExistingPublicStatusesForSync(
+              user.uid,
+              isAdminUser
+            );
+            const batchOps: Array<(batch: WriteBatch) => void> = [];
+            const pushedCaseIds: string[] = [];
+
+            const resolveMergedPlot = (plotId: string) => {
+              const basePlot = DEFAULT_PLOTS.find((p) => p.id === plotId);
+              return basePlot
+                ? { ...basePlot, ...(overridesRef.current[basePlot.id] ?? {}) }
+                : undefined;
+            };
+
+            // 1) Push local-only or dirty loan cases to both loan_cases & loan_public_status
+            for (const lc of unsyncedLocal) {
+              const mergedPlot = resolveMergedPlot(lc.plotId);
+              const privateRef = doc(db, loanCasesPath, lc.caseId);
+              const publicRef = doc(db, 'loan_public_status', lc.caseId);
+
+              if (cloudIds.has(lc.caseId)) {
+                batchOps.push((batch) => batch.update(privateRef, buildLoanCaseUpdatePayload(lc)));
+              } else {
+                batchOps.push((batch) =>
+                  batch.set(privateRef, buildLoanCaseCreatePayload(lc, user.uid))
+                );
+                cloudLoanCaseIdsRef.current.add(lc.caseId);
+              }
+
+              if (existingPublicMap.has(lc.caseId)) {
+                const updatePub = await buildLoanPublicStatusUpdatePayload(lc, mergedPlot);
+                batchOps.push((batch) => batch.update(publicRef, updatePub));
+              } else {
+                const createPub = await buildLoanPublicStatusCreatePayload(
+                  lc,
+                  mergedPlot,
+                  user.uid
+                );
+                batchOps.push((batch) => batch.set(publicRef, createPub));
+              }
+              pushedCaseIds.push(lc.caseId);
+            }
+
+            // 2) Backfill any cloud loan_cases missing or stale in loan_public_status so customers see ALL cases
+            let backfilledCount = 0;
+            for (const cc of cloudCases) {
+              if (unsyncedIds.has(cc.caseId)) continue;
+              const mergedPlot = resolveMergedPlot(cc.plotId);
+              const existingPub = existingPublicMap.get(cc.caseId);
+              const expectedPub = await toPublicLoanStatusRecord(cc, mergedPlot);
+              const publicRef = doc(db, 'loan_public_status', cc.caseId);
+
+              if (!existingPub) {
+                const createPub = await buildLoanPublicStatusCreatePayload(
+                  cc,
+                  mergedPlot,
+                  user.uid
+                );
+                batchOps.push((batch) => batch.set(publicRef, createPub));
+                backfilledCount += 1;
+              } else if (
+                existingPub.plotId !== expectedPub.plotId ||
+                existingPub.houseNumber !== expectedPub.houseNumber ||
+                existingPub.modelName !== expectedPub.modelName ||
+                existingPub.overallStatus !== expectedPub.overallStatus ||
+                existingPub.maskedName !== expectedPub.maskedName ||
+                existingPub.idCardHash !== expectedPub.idCardHash ||
+                existingPub.phoneHash !== expectedPub.phoneHash ||
+                existingPub.banks.length !== expectedPub.banks.length
+              ) {
+                const updatePub = await buildLoanPublicStatusUpdatePayload(cc, mergedPlot);
+                batchOps.push((batch) => batch.update(publicRef, updatePub));
+                backfilledCount += 1;
+              }
+            }
+
+            if (batchOps.length > 0) {
+              await runChunkedBatch(batchOps);
+              if (pushedCaseIds.length > 0) {
+                setDirtyLoanCaseIds((prev) =>
+                  prev.filter((id) => !pushedCaseIds.includes(id))
+                );
+              }
+              if (pushedCaseIds.length > 0 || backfilledCount > 0) {
+                showTimedNotice(
+                  `ซิงค์ข้อมูลสินเชื่อลูกค้าขึ้นฐานข้อมูลกลางแล้ว (${pushedCaseIds.length + backfilledCount} รายการ)`
+                );
+              }
+            }
+          })().catch((err) => {
+            try {
+              handleFirestoreError(err, OperationType.WRITE, loanCasesPath);
+            } catch (wrapped) {
+              setFirestoreFatalError(wrapped as Error);
+            }
+          });
+
+          if (unsyncedLocal.length > 0) {
+            return;
+          }
+        }
+
+        setLoanCases(cloudCases);
+        try {
+          localStorage.setItem(STORAGE_KEY_LOAN_CASES, JSON.stringify(cloudCases));
+        } catch {
+          // ignore
+        }
+      },
+      (error) => {
+        try {
+          handleFirestoreError(error, OperationType.LIST, loanCasesPath);
+        } catch (wrapped) {
+          setFirestoreFatalError(wrapped as Error);
+        }
+      }
+    );
+
+    return () => {
+      unsubLoans();
+    };
+  }, [authReady, user, adminCheckedUid, isAdminDocMember, showTimedNotice]);
 
   // Real-time cross-tab sync via BroadcastChannel & storage events
   useEffect(() => {
@@ -718,16 +959,21 @@ export default function App() {
   const handleCloudAuthClick = async () => {
     if (user) {
       await signOutUser();
-      showTimedNotice('ออกจากระบบซิงค์คลาวด์แล้ว (ยังบันทึกอัตโนมัติในเครื่องนี้)');
+      showTimedNotice(
+        'ออกจากระบบฐานข้อมูลกลางแล้ว (การแก้ไขต่อจากนี้จะเก็บเฉพาะในเครื่องนี้)',
+        'warning'
+      );
       return;
     }
     try {
       await signInWithGoogle();
       setForceCustomerView(false);
       playSuccessSound();
-      showTimedNotice('เชื่อมต่อคลาวด์สำเร็จ · ข้อมูลอัปเดตและบันทึกแบบเรียลไทม์แล้ว');
+      showTimedNotice(
+        'เชื่อมต่อฐานข้อมูลกลางสำเร็จ · ข้อมูลอัปเดตและบันทึกให้ทุกเครื่องเห็นตรงกันแบบเรียลไทม์แล้ว'
+      );
     } catch {
-      showTimedNotice('ยกเลิกการเชื่อมต่อคลาวด์');
+      showTimedNotice('ยกเลิกการเชื่อมต่อ Google', 'warning');
     }
   };
 
@@ -793,6 +1039,89 @@ export default function App() {
     return { total: plots.length, available, showhouse, notOpen, minPrice, maxPrice, minWah, maxWah };
   }, [plots]);
 
+  const handleSyncAllLocalToCloud = async () => {
+    if (!user || !user.emailVerified) {
+      await handleCloudAuthClick();
+      return;
+    }
+    if (isSyncingCloud) return;
+
+    setIsSyncingCloud(true);
+    try {
+      const batchOps: Array<(batch: WriteBatch) => void> = [];
+      const overrideKeys = Object.keys(overridesRef.current);
+
+      for (const k of overrideKeys) {
+        const basePlot = DEFAULT_PLOTS.find((p) => p.id === k);
+        if (!basePlot) continue;
+        const mergedPlot: PlotUnit = { ...basePlot, ...overridesRef.current[k] };
+        if (basePlot.status === 'sold' && !isVerifiedAdmin) {
+          continue;
+        }
+        batchOps.push((batch) =>
+          batch.set(doc(db, 'plot_overrides', k), buildPlotOverridePayload(mergedPlot, user.uid))
+        );
+      }
+
+      const existingPublicMap = await fetchExistingPublicStatusesForSync(
+        user.uid,
+        isVerifiedAdmin
+      );
+
+      for (const lc of loanCasesRef.current) {
+        const basePlot = DEFAULT_PLOTS.find((p) => p.id === lc.plotId);
+        const mergedPlot = basePlot
+          ? { ...basePlot, ...(overridesRef.current[basePlot.id] ?? {}) }
+          : undefined;
+        const privateRef = doc(db, 'loan_cases', lc.caseId);
+        const publicRef = doc(db, 'loan_public_status', lc.caseId);
+
+        let privateExists = cloudLoanCaseIdsRef.current.has(lc.caseId);
+        if (!privateExists) {
+          const snap = await getDoc(privateRef);
+          privateExists = snap.exists();
+          if (privateExists) cloudLoanCaseIdsRef.current.add(lc.caseId);
+        }
+
+        if (privateExists) {
+          batchOps.push((batch) => batch.update(privateRef, buildLoanCaseUpdatePayload(lc)));
+        } else {
+          batchOps.push((batch) =>
+            batch.set(privateRef, buildLoanCaseCreatePayload(lc, user.uid))
+          );
+          cloudLoanCaseIdsRef.current.add(lc.caseId);
+        }
+
+        if (existingPublicMap.has(lc.caseId)) {
+          const updatePub = await buildLoanPublicStatusUpdatePayload(lc, mergedPlot);
+          batchOps.push((batch) => batch.update(publicRef, updatePub));
+        } else {
+          const createPub = await buildLoanPublicStatusCreatePayload(lc, mergedPlot, user.uid);
+          batchOps.push((batch) => batch.set(publicRef, createPub));
+        }
+      }
+
+      if (batchOps.length > 0) {
+        await runChunkedBatch(batchOps);
+      }
+
+      setDirtyPlotIds([]);
+      setDirtyLoanCaseIds([]);
+      playSuccessSound();
+      showTimedNotice(
+        `ซิงค์ข้อมูลทั้งหมดขึ้นฐานข้อมูลกลางสำเร็จ (${overrideKeys.length} แปลง · ${loanCasesRef.current.length} ลูกค้า) ทุกเครื่องเห็นตรงกันแล้ว`
+      );
+    } catch (error) {
+      try {
+        handleFirestoreError(error, OperationType.WRITE, 'sync_all');
+      } catch (wrapped) {
+        setFirestoreFatalError(wrapped as Error);
+      }
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
   const handleUpdatePlot = async (id: string, patch: Partial<PlotUnit>) => {
     const current = plots.find((p) => p.id === id);
     if (!current || (current.status === 'sold' && !soldUnlocked)) {
@@ -827,6 +1156,8 @@ export default function App() {
       const path = `plot_overrides/${id}`;
       try {
         await setDoc(doc(db, 'plot_overrides', id), buildPlotOverridePayload(nextPlot, user.uid));
+        setDirtyPlotIds((prev) => prev.filter((item) => item !== id));
+        showTimedNotice(`บันทึกแปลง ${id} ลงฐานข้อมูลกลางแล้ว · ทุกเครื่องเห็นตรงกัน`);
       } catch (error) {
         try {
           handleFirestoreError(error, OperationType.WRITE, path);
@@ -834,6 +1165,12 @@ export default function App() {
           setFirestoreFatalError(wrapped as Error);
         }
       }
+    } else {
+      setDirtyPlotIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      showTimedNotice(
+        `บันทึกแปลง ${id} ไว้ในเครื่องนี้เท่านั้น · กรุณากด "เชื่อมต่อ Google" เพื่อบันทึกลงฐานข้อมูลกลาง`,
+        'warning'
+      );
     }
   };
 
@@ -844,7 +1181,6 @@ export default function App() {
       updatedAtMs: Date.now(),
     });
 
-    playSuccessSound();
     setLoanCases((prev) => {
       const exists = prev.some((item) => item.caseId === sanitized.caseId);
       const next = exists
@@ -862,7 +1198,16 @@ export default function App() {
         const privateRef = doc(db, 'loan_cases', sanitized.caseId);
         const publicRef = doc(db, 'loan_public_status', sanitized.caseId);
 
-        if (!cloudLoanCaseIdsRef.current.has(sanitized.caseId)) {
+        let privateExists = cloudLoanCaseIdsRef.current.has(sanitized.caseId);
+        if (!privateExists) {
+          const existingPrivate = await getDoc(privateRef);
+          privateExists = existingPrivate.exists();
+          if (privateExists) {
+            cloudLoanCaseIdsRef.current.add(sanitized.caseId);
+          }
+        }
+
+        if (!privateExists) {
           batch.set(privateRef, buildLoanCaseCreatePayload(sanitized, user.uid));
           cloudLoanCaseIdsRef.current.add(sanitized.caseId);
         } else {
@@ -878,22 +1223,32 @@ export default function App() {
         } else {
           batch.set(
             publicRef,
-            await buildLoanPublicStatusCreatePayload(
-              sanitized,
-              targetPlot,
-              sanitized.ownerId || user.uid
-            )
+            await buildLoanPublicStatusCreatePayload(sanitized, targetPlot, user.uid)
           );
         }
 
         await batch.commit();
+        setDirtyLoanCaseIds((prev) => prev.filter((id) => id !== sanitized.caseId));
+        showTimedNotice(
+          `บันทึกข้อมูลลูกค้าแปลง ${sanitized.plotId} ลงฐานข้อมูลกลางแล้ว · ลูกค้าและทุกเครื่องมองเห็นตรงกัน`
+        );
       } catch (error) {
         try {
           handleFirestoreError(error, OperationType.WRITE, path);
         } catch (wrapped) {
           setFirestoreFatalError(wrapped as Error);
+          throw wrapped;
         }
       }
+    } else {
+      playSuccessSound();
+      setDirtyLoanCaseIds((prev) =>
+        prev.includes(sanitized.caseId) ? prev : [...prev, sanitized.caseId]
+      );
+      showTimedNotice(
+        'บันทึกไว้เฉพาะในเครื่องนี้ชั่วคราว · กรุณากด "เชื่อมต่อ Google" เพื่อให้ลูกค้าค้นหาจากเครื่องอื่นได้',
+        'warning'
+      );
     }
   };
 
@@ -904,8 +1259,9 @@ export default function App() {
       broadcastRef.current?.postMessage({ type: 'loan_cases', payload: next });
       return next;
     });
+    setDirtyLoanCaseIds((prev) => prev.filter((id) => id !== caseId));
 
-    if (user && user.emailVerified && cloudLoanCaseIdsRef.current.has(caseId)) {
+    if (user && user.emailVerified) {
       const path = `loan_cases/${caseId}`;
       try {
         const batch = writeBatch(db);
@@ -913,6 +1269,7 @@ export default function App() {
         batch.delete(doc(db, 'loan_public_status', caseId));
         await batch.commit();
         cloudLoanCaseIdsRef.current.delete(caseId);
+        showTimedNotice('ลบข้อมูลออกจากฐานข้อมูลกลางเรียบร้อยแล้ว');
       } catch (error) {
         try {
           handleFirestoreError(error, OperationType.DELETE, path);
@@ -958,17 +1315,28 @@ export default function App() {
     });
 
     if (user && user.emailVerified) {
-      void (async () => {
-        const batch = writeBatch(db);
-        for (const k of keys) {
-          batch.set(doc(db, 'plot_overrides', k), buildPlotOverridePayload(nextPlotMap[k], user.uid));
-        }
-        try {
-          await batch.commit();
-        } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, 'plot_overrides');
-        }
-      })();
+      const ops = keys.map(
+        (k) => (batch: WriteBatch) =>
+          batch.set(doc(db, 'plot_overrides', k), buildPlotOverridePayload(nextPlotMap[k], user.uid))
+      );
+      void runChunkedBatch(ops)
+        .then(() => {
+          setDirtyPlotIds((prev) => prev.filter((id) => !keys.includes(id)));
+          showTimedNotice(`นำเข้าและบันทึก ${keys.length} แปลงลงฐานข้อมูลกลางเรียบร้อยแล้ว`);
+        })
+        .catch((error) => {
+          try {
+            handleFirestoreError(error, OperationType.WRITE, 'plot_overrides');
+          } catch (wrapped) {
+            setFirestoreFatalError(wrapped as Error);
+          }
+        });
+    } else {
+      setDirtyPlotIds((prev) => Array.from(new Set([...prev, ...keys])));
+      showTimedNotice(
+        `อัปเดต ${keys.length} แปลงเฉพาะในเครื่องนี้ · กด "เชื่อมต่อ Google" เพื่อบันทึกลงฐานข้อมูลกลาง`,
+        'warning'
+      );
     }
     return keys.length;
   };
@@ -977,6 +1345,7 @@ export default function App() {
     playCancelSound();
     const overrideKeys = Object.keys(overrides);
     setOverrides({});
+    setDirtyPlotIds([]);
     localStorage.removeItem(STORAGE_KEY_OVERRIDES);
     broadcastRef.current?.postMessage({ type: 'overrides', payload: {} });
 
@@ -984,15 +1353,21 @@ export default function App() {
       void (async () => {
         for (const k of overrideKeys) {
           const current = plots.find((p) => p.id === k);
-          if (current && current.status === 'sold' && user.email !== 'kritin.prom@gmail.com') {
+          if (current && current.status === 'sold' && !isVerifiedAdmin) {
             continue;
           }
           try {
             await deleteDoc(doc(db, 'plot_overrides', k));
           } catch (error) {
-            handleFirestoreError(error, OperationType.DELETE, `plot_overrides/${k}`);
+            try {
+              handleFirestoreError(error, OperationType.DELETE, `plot_overrides/${k}`);
+            } catch (wrapped) {
+              setFirestoreFatalError(wrapped as Error);
+            }
+            break;
           }
         }
+        showTimedNotice('รีเซ็ตข้อมูลแปลงในฐานข้อมูลกลางเรียบร้อยแล้ว');
       })();
     }
   };
@@ -1062,10 +1437,8 @@ export default function App() {
     ? user.displayName || user.email?.split('@')[0] || 'บัญชีคลาวด์'
     : null;
 
-  const isVerifiedAdmin = Boolean(
-    user && user.email === 'kritin.prom@gmail.com' && user.emailVerified
-  );
   const isStaffMode = !forceCustomerView && (staffUnlocked || isVerifiedAdmin);
+  const pendingSyncCount = dirtyPlotIds.length + dirtyLoanCaseIds.length;
 
   if (firestoreFatalError) {
     throw firestoreFatalError;
@@ -1105,10 +1478,68 @@ export default function App() {
           onOpenManageModal={() => setIsManageModalOpen(true)}
         />
 
+        {isStaffMode && !isCloudConnected && (
+          <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 pt-3 relative z-20">
+            <div className="px-4 py-3 rounded-2xl border bg-amber-50 border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-start sm:items-center gap-2.5 text-xs leading-relaxed">
+                <CloudOff className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+                <div>
+                  <strong className="font-semibold">
+                    โหมดออฟไลน์เฉพาะเครื่อง (ยังไม่บันทึกลงฐานข้อมูลกลาง)
+                  </strong>{' '}
+                  <span>
+                    — การแก้ไขหรือเพิ่มลูกค้าตอนนี้จะเห็นเฉพาะบนเครื่องนี้เท่านั้น เชื่อมต่อบัญชี Google เพื่อให้ทุกคนและทุกเครื่องเห็นข้อมูลตรงกัน
+                  </span>
+                  {pendingSyncCount > 0 && (
+                    <span className="ml-1.5 inline-block px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-950 font-semibold">
+                      รอซิงค์ {pendingSyncCount} รายการ
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                data-sound="custom"
+                onClick={() => void handleCloudAuthClick()}
+                className="min-h-[38px] inline-flex items-center justify-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+              >
+                <Cloud className="w-3.5 h-3.5" />
+                เชื่อมต่อ Google (ซิงค์ฐานข้อมูลกลาง)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isStaffMode && isCloudConnected && pendingSyncCount > 0 && (
+          <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 pt-3 relative z-20">
+            <div className="px-4 py-2.5 rounded-2xl border bg-[#FBF7EE] border-[#DFC996] text-[#14191F] flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span>
+                มีข้อมูลในเครื่องที่รอซิงค์ขึ้นฐานข้อมูลกลาง <strong>{pendingSyncCount} รายการ</strong>
+              </span>
+              <button
+                type="button"
+                data-sound="custom"
+                disabled={isSyncingCloud}
+                onClick={() => void handleSyncAllLocalToCloud()}
+                className="min-h-[36px] inline-flex items-center gap-1.5 px-3.5 py-1 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                {isSyncingCloud ? 'กำลังซิงค์...' : 'ซิงค์ขึ้นฐานข้อมูลกลางทันที'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {cloudNotice && (
           <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 pt-3 relative z-20">
-            <div className="px-4 py-2.5 rounded-2xl border text-xs font-medium bg-[#FBF7EE] border-[#DFC996] text-[#8A6820]">
-              {cloudNotice}
+            <div
+              className={`px-4 py-2.5 rounded-2xl border text-xs font-medium ${
+                cloudNotice.tone === 'warning'
+                  ? 'bg-amber-50 border-amber-300 text-amber-900'
+                  : 'bg-[#FBF7EE] border-[#DFC996] text-[#8A6820]'
+              }`}
+            >
+              {cloudNotice.msg}
             </div>
           </div>
         )}
@@ -1334,6 +1765,11 @@ export default function App() {
           {activeTab === 'loans' && (
             <LoanStatusView
               isStaffMode={true}
+              isCloudConnected={isCloudConnected}
+              isSyncingCloud={isSyncingCloud}
+              pendingSyncCount={pendingSyncCount}
+              onConnectCloud={() => void handleCloudAuthClick()}
+              onSyncAllToCloud={handleSyncAllLocalToCloud}
               plots={plots}
               loanCases={loanCases}
               localPublicStatuses={localPublicStatuses}

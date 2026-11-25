@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Eye, EyeOff, KeyRound, Lock, Unlock, X } from 'lucide-react';
+import { Cloud, Eye, EyeOff, KeyRound, Lock, Unlock, X } from 'lucide-react';
 import {
   playCancelSound,
+  playClickSound,
   playErrorSound,
   playUnlockSound,
 } from '../utils/soundEffects';
@@ -99,86 +100,111 @@ export function UnlockModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label
-              htmlFor="unlock-passcode-input"
-              className="block text-xs font-medium text-zinc-700 mb-1.5"
-            >
-              {isStaff ? 'รหัสผ่านเจ้าหน้าที่' : 'รหัสผ่านปลดล็อก'}
-            </label>
-            <div className="relative">
-              <KeyRound className="w-4 h-4 text-[#A67F32] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                id="unlock-passcode-input"
-                type={showCode ? 'text' : 'password'}
-                inputMode="numeric"
-                autoFocus
-                value={code}
-                onChange={(e) => {
-                  setCode(e.target.value);
-                  if (error) setError(false);
-                }}
-                placeholder="กรอกรหัสผ่าน..."
-                className={`w-full pl-9 pr-10 py-2.5 text-sm font-mono-tabular bg-[#F7F5F0] border rounded-xl focus:outline-none focus:ring-2 focus:bg-white transition-colors ${
-                  error
-                    ? 'border-red-400 focus:ring-red-200 text-red-700'
-                    : 'border-[#DCD4C3] focus:ring-[#C59B48]/35 focus:border-[#C59B48]'
-                }`}
-              />
-              <button
-                type="button"
-                data-sound="custom"
-                onClick={() => setShowCode((v) => !v)}
-                aria-label={showCode ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 inline-flex items-center justify-center text-zinc-400 hover:text-zinc-700 cursor-pointer"
-              >
-                {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            {error && (
-              <p className="mt-1.5 text-xs font-medium text-red-600">
-                รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <button
-              type="button"
-              data-sound="custom"
-              onClick={handleClose}
-              className="min-h-[44px] px-4 py-2 text-xs font-medium text-zinc-600 hover:bg-stone-100 rounded-xl cursor-pointer"
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="submit"
-              data-sound="custom"
-              disabled={!code.trim()}
-              className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#14191F] hover:bg-[#232B36] rounded-xl cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-            >
-              <Unlock className="w-3.5 h-3.5 text-[#E5C57B]" />
-              {isStaff ? 'ยืนยันเข้าโหมดเจ้าหน้าที่' : 'ยืนยันปลดล็อก'}
-            </button>
-          </div>
-
+        <div className="p-5 space-y-4">
           {isStaff && onGoogleSignIn && (
-            <div className="pt-3 border-t border-[#ECE7DC]">
+            <div className="p-3.5 rounded-xl bg-[#FBF7EE] border border-[#DFC996] space-y-2.5">
+              <div className="text-xs font-semibold text-[#14191F] flex items-center gap-1.5">
+                <Cloud className="w-4 h-4 text-[#A67F32] shrink-0" />
+                <span>เชื่อมต่อฐานข้อมูลกลาง (แนะนำ)</span>
+              </div>
+              <p className="text-[11px] text-zinc-600 leading-relaxed">
+                เข้าสู่ระบบด้วย Google เพื่อดึงข้อมูลล่าสุดจากฐานข้อมูลกลาง และบันทึกให้ทุกเครื่องมองเห็นตรงกันแบบเรียลไทม์
+              </p>
               <button
                 type="button"
                 data-sound="custom"
                 onClick={() => {
+                  playClickSound();
                   onClose();
                   onGoogleSignIn();
                 }}
-                className="w-full min-h-[42px] px-4 py-2 text-xs font-medium text-[#14191F] bg-[#F5F2EB] hover:bg-[#EAE4D7] border border-[#DFD8C8] rounded-xl cursor-pointer transition-colors"
+                className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D5B263] rounded-xl cursor-pointer transition-colors shadow-2xs"
               >
-                เข้าสู่ระบบด้วย Google (สำหรับผู้ดูแลระบบ)
+                <Cloud className="w-4 h-4" />
+                เข้าสู่ระบบด้วย Google (ซิงค์ทุกเครื่อง)
               </button>
             </div>
           )}
-        </form>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isStaff && (
+              <div className="relative flex items-center py-0.5">
+                <div className="flex-1 border-t border-[#ECE7DC]" />
+                <span className="px-2.5 text-[11px] text-zinc-400">
+                  หรือเข้าด้วยรหัสผ่าน
+                </span>
+                <div className="flex-1 border-t border-[#ECE7DC]" />
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="unlock-passcode-input"
+                className="block text-xs font-medium text-zinc-700 mb-1.5"
+              >
+                {isStaff ? 'รหัสผ่านเจ้าหน้าที่' : 'รหัสผ่านปลดล็อก'}
+              </label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 text-[#A67F32] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="unlock-passcode-input"
+                  type={showCode ? 'text' : 'password'}
+                  inputMode="numeric"
+                  autoFocus={!isStaff}
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    if (error) setError(false);
+                  }}
+                  placeholder="กรอกรหัสผ่าน..."
+                  className={`w-full pl-9 pr-10 py-2.5 text-sm font-mono-tabular bg-[#F7F5F0] border rounded-xl focus:outline-none focus:ring-2 focus:bg-white transition-colors ${
+                    error
+                      ? 'border-red-400 focus:ring-red-200 text-red-700'
+                      : 'border-[#DCD4C3] focus:ring-[#C59B48]/35 focus:border-[#C59B48]'
+                  }`}
+                />
+                <button
+                  type="button"
+                  data-sound="custom"
+                  onClick={() => setShowCode((v) => !v)}
+                  aria-label={showCode ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 inline-flex items-center justify-center text-zinc-400 hover:text-zinc-700 cursor-pointer"
+                >
+                  {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {error ? (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง
+                </p>
+              ) : isStaff ? (
+                <p className="mt-1.5 text-[11px] text-zinc-500 leading-relaxed">
+                  หากเข้าด้วยรหัสผ่านอย่างเดียว ข้อมูลจะบันทึกไว้ในเครื่องนี้ก่อนจนกว่าจะกดเชื่อมต่อ Google เพื่อซิงค์ขึ้นฐานข้อมูลกลาง
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                data-sound="custom"
+                onClick={handleClose}
+                className="min-h-[44px] px-4 py-2 text-xs font-medium text-zinc-600 hover:bg-stone-100 rounded-xl cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                data-sound="custom"
+                disabled={!code.trim()}
+                className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#14191F] hover:bg-[#232B36] rounded-xl cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+              >
+                <Unlock className="w-3.5 h-3.5 text-[#E5C57B]" />
+                {isStaff ? 'ยืนยันเข้าโหมดเจ้าหน้าที่' : 'ยืนยันปลดล็อก'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

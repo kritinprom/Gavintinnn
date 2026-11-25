@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   Building2,
   Check,
   CheckCircle2,
   Clock,
+  Cloud,
+  CloudOff,
   CreditCard,
   Eye,
   EyeOff,
@@ -13,6 +16,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  RefreshCw,
   Search,
   Trash2,
   Unlock,
@@ -62,12 +66,17 @@ import {
 
 interface LoanStatusViewProps {
   isStaffMode: boolean;
+  isCloudConnected?: boolean;
+  isSyncingCloud?: boolean;
+  pendingSyncCount?: number;
+  onConnectCloud?: () => void;
+  onSyncAllToCloud?: () => Promise<void>;
   plots: PlotUnit[];
   loanCases: LoanCase[];
   localPublicStatuses: LoanPublicStatus[];
   onSearchPublicStatuses: (queryText: string) => Promise<LoanPublicStatus[]>;
-  onSaveCase: (loanCase: LoanCase, isNew: boolean) => void;
-  onDeleteCase: (caseId: string) => void;
+  onSaveCase: (loanCase: LoanCase, isNew: boolean) => Promise<void> | void;
+  onDeleteCase: (caseId: string) => Promise<void> | void;
   initialPlotId?: string | null;
 }
 
@@ -106,6 +115,11 @@ function createEmptyBankEntry(index: number): BankApplicationEntry {
 
 export function LoanStatusView({
   isStaffMode,
+  isCloudConnected = false,
+  isSyncingCloud = false,
+  pendingSyncCount = 0,
+  onConnectCloud,
+  onSyncAllToCloud,
   plots,
   loanCases,
   localPublicStatuses,
@@ -118,6 +132,8 @@ export function LoanStatusView({
   const [customerQuery, setCustomerQuery] = useState<string>('');
   const [remoteMatches, setRemoteMatches] = useState<LoanPublicStatus[]>([]);
   const [isSearchingRemote, setIsSearchingRemote] = useState<boolean>(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchRetryTick, setSearchRetryTick] = useState<number>(0);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [idCardPasscodeInput, setIdCardPasscodeInput] = useState<string>('');
   const [showPasscodeInput, setShowPasscodeInput] = useState<boolean>(false);
@@ -140,6 +156,7 @@ export function LoanStatusView({
   const [draftNote, setDraftNote] = useState<string>('');
   const [draftBanks, setDraftBanks] = useState<BankApplicationEntry[]>([createEmptyBankEntry(0)]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmittingForm, setIsSubmittingForm] = useState<boolean>(false);
 
   // Force customer mode whenever staff mode turns off
   useEffect(() => {
@@ -211,20 +228,24 @@ export function LoanStatusView({
     if (effectiveSubMode !== 'customer' || !queryAnalysis.meetsMinThreshold) {
       setRemoteMatches([]);
       setIsSearchingRemote(false);
+      setSearchError(null);
       return;
     }
 
     let cancelled = false;
     setIsSearchingRemote(true);
+    setSearchError(null);
     const timer = window.setTimeout(async () => {
       try {
         const remote = await onSearchPublicStatuses(queryAnalysis.raw);
         if (!cancelled) {
           setRemoteMatches(remote);
+          setSearchError(null);
         }
       } catch {
         if (!cancelled) {
           setRemoteMatches([]);
+          setSearchError('ไม่สามารถเชื่อมต่อฐานข้อมูลกลางได้ชั่วคราว กรุณาลองค้นหาอีกครั้ง');
         }
       } finally {
         if (!cancelled) {
@@ -237,7 +258,7 @@ export function LoanStatusView({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [effectiveSubMode, queryAnalysis, onSearchPublicStatuses]);
+  }, [effectiveSubMode, queryAnalysis, onSearchPublicStatuses, searchRetryTick]);
 
   // Merge localPublicStatuses matches + Firestore remoteMatches without ever exposing unmasked PII
   const customerMatchedPublicCases = useMemo(() => {
@@ -372,8 +393,9 @@ export function LoanStatusView({
     setDraftBanks((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingForm) return;
     const trimmedName = draftCustomerName.trim();
     const normalizedPhone = normalizePhoneDigits(draftCustomerPhone);
     const normalizedIdCard = normalizeIdCardDigits(draftCustomerIdCard);
@@ -430,11 +452,19 @@ export function LoanStatusView({
       updatedAtMs: Date.now(),
     };
 
-    playSuccessSound();
-    onSaveCase(nextCase, isNew);
-    setIsFormOpen(false);
-    setEditingCaseId(null);
-    setFormError(null);
+    setIsSubmittingForm(true);
+    try {
+      await onSaveCase(nextCase, isNew);
+      playSuccessSound();
+      setIsFormOpen(false);
+      setEditingCaseId(null);
+      setFormError(null);
+    } catch {
+      playErrorSound();
+      setFormError('เกิดข้อผิดพลาดในการบันทึกข้อมูลลงฐานข้อมูลกลาง กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsSubmittingForm(false);
+    }
   };
 
   const handleVerifyIdCardPasscode = async (
@@ -867,13 +897,40 @@ export function LoanStatusView({
                   </div>
                 )}
 
-                {!isSearchingRemote && customerMatchedPublicCases.length === 0 && (
+                {!isSearchingRemote && searchError && customerMatchedPublicCases.length === 0 && (
+                  <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 text-center space-y-2.5">
+                    <div className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>{searchError}</span>
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        data-sound="custom"
+                        onClick={() => {
+                          playClickSound();
+                          setSearchRetryTick((t) => t + 1);
+                        }}
+                        className="min-h-[40px] inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-[#14191F] bg-white hover:bg-amber-100 border border-amber-300 rounded-xl cursor-pointer transition-colors"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        ลองค้นหาอีกครั้ง
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!isSearchingRemote && !searchError && customerMatchedPublicCases.length === 0 && (
                   <div className="p-6 rounded-2xl bg-[#FAF8F4] border border-[#ECE7DC] text-center">
                     <p className="text-sm font-semibold text-[#14191F]">
                       ไม่พบบัญชีที่ตรงกับคำค้นหา "{queryAnalysis.raw}"
                     </p>
                     <p className="mt-1 text-xs text-zinc-500">
-                      ตรวจสอบตัวสะกดชื่อ 3 ตัวแรก หรือเบอร์โทรศัพท์ 4 ตัวท้าย / 10 หลักอีกครั้ง หรือติดต่อที่ปรึกษาการขาย
+                      {queryAnalysis.isPhoneQuery &&
+                      queryAnalysis.digits.length >= 5 &&
+                      queryAnalysis.digits.length < 9
+                        ? 'สำหรับการค้นหาด้วยเบอร์โทรศัพท์ กรุณาพิมพ์ 4 หลักสุดท้าย หรือเบอร์ครบทั้ง 10 หลัก'
+                        : 'ตรวจสอบตัวสะกดชื่อ 3 ตัวแรก หรือเบอร์โทรศัพท์ 4 ตัวท้าย / 10 หลักอีกครั้ง หรือติดต่อที่ปรึกษาการขาย'}
                     </p>
                   </div>
                 )}
@@ -997,6 +1054,83 @@ export function LoanStatusView({
       {/* Mode 2: Staff Add / Update Customer & Banks (Strictly gated behind isStaffMode) */}
       {isStaffMode && effectiveSubMode === 'manage' && (
         <div className="space-y-5">
+          {/* Cloud Database Sync Status Bar */}
+          <div
+            className={`rounded-2xl border px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+              isCloudConnected
+                ? 'bg-[#FBF7EE] border-[#DFC996] text-[#14191F]'
+                : 'bg-amber-50 border-amber-300 text-amber-950'
+            }`}
+          >
+            <div className="flex items-start sm:items-center gap-2.5">
+              {isCloudConnected ? (
+                <Cloud className="w-5 h-5 text-[#9B7A36] shrink-0 mt-0.5 sm:mt-0" />
+              ) : (
+                <CloudOff className="w-5 h-5 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+              )}
+              <div className="text-xs leading-relaxed">
+                {isCloudConnected ? (
+                  <>
+                    <span className="font-semibold text-[#14191F]">
+                      บันทึกลงฐานข้อมูลกลางเรียลไทม์แล้ว
+                    </span>{' '}
+                    <span className="text-zinc-600">
+                      — ข้อมูลลูกค้าและสถานะธนาคารทุกเครื่องและหน้าค้นหาลูกค้ามองเห็นตรงกันทั้งหมด
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold">
+                      ยังไม่เชื่อมต่อฐานข้อมูลกลาง (บันทึกเฉพาะในเครื่องนี้เท่านั้น)
+                    </span>{' '}
+                    <span>
+                      — เชื่อมต่อบัญชี Google เพื่อให้ลูกค้าและทีมงานทุกเครื่องมองเห็นข้อมูลตรงกัน
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {isCloudConnected ? (
+                onSyncAllToCloud && (
+                  <button
+                    type="button"
+                    data-sound="custom"
+                    disabled={isSyncingCloud}
+                    onClick={() => {
+                      playClickSound();
+                      void onSyncAllToCloud();
+                    }}
+                    className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-[#14191F] bg-white hover:bg-[#F3ECD9] border border-[#D5BE84] rounded-xl cursor-pointer transition-colors disabled:opacity-60"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                    {isSyncingCloud
+                      ? 'กำลังซิงค์...'
+                      : pendingSyncCount > 0
+                      ? `ซิงค์ขึ้นฐานข้อมูลกลาง (${pendingSyncCount})`
+                      : 'ซิงค์ข้อมูลทั้งหมดอีกครั้ง'}
+                  </button>
+                )
+              ) : (
+                onConnectCloud && (
+                  <button
+                    type="button"
+                    data-sound="custom"
+                    onClick={() => {
+                      playClickSound();
+                      onConnectCloud();
+                    }}
+                    className="min-h-[40px] inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Cloud className="w-3.5 h-3.5" />
+                    เชื่อมต่อ Google เพื่อบันทึกลงฐานข้อมูลกลาง
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+
           {/* 4-Column Summary Strip */}
           <div className="bg-[#FFFEFC] border border-[#E4DFD3] rounded-3xl p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 shadow-[0_6px_22px_rgba(20,25,31,0.04)]">
             <div>
@@ -1028,7 +1162,7 @@ export function LoanStatusView({
           {/* Add / Edit Customer Form */}
           {isFormOpen && (
             <form
-              onSubmit={handleSubmitForm}
+              onSubmit={(e) => void handleSubmitForm(e)}
               className="bg-[#FFFEFC] border border-[#D4C39A] rounded-3xl p-5 sm:p-7 shadow-[0_12px_36px_rgba(20,25,31,0.08)] space-y-5"
             >
               <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#ECE7DC]">
@@ -1339,10 +1473,15 @@ export function LoanStatusView({
                 <button
                   type="submit"
                   data-sound="custom"
-                  className="min-h-[44px] inline-flex items-center gap-1.5 px-5 py-2 text-xs sm:text-sm font-semibold text-white bg-[#14191F] hover:bg-[#232B36] rounded-xl cursor-pointer shadow-xs"
+                  disabled={isSubmittingForm}
+                  className="min-h-[44px] inline-flex items-center gap-1.5 px-5 py-2 text-xs sm:text-sm font-semibold text-white bg-[#14191F] hover:bg-[#232B36] rounded-xl cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   <Check className="w-4 h-4 text-[#E5C57B]" />
-                  {editingCaseId ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลลูกค้า'}
+                  {isSubmittingForm
+                    ? 'กำลังบันทึก...'
+                    : editingCaseId
+                    ? 'บันทึกการแก้ไข'
+                    : 'บันทึกข้อมูลลูกค้า'}
                 </button>
               </div>
             </form>

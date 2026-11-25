@@ -152,24 +152,24 @@ export function Header({
                   }}
                   title={
                     cloudUserLabel
-                      ? `ซิงค์ข้อมูลเรียลไทม์ผ่านคลาวด์ (${cloudUserLabel}) · คลิกเพื่อออกจากระบบ`
-                      : 'เข้าสู่ระบบ Google เพื่อบันทึกและอัปเดตข้อมูลแบบเรียลไทม์ทุกเครื่อง'
+                      ? `ซิงค์ข้อมูลเรียลไทม์ผ่านฐานข้อมูลกลาง (${cloudUserLabel}) · คลิกเพื่อออกจากระบบ`
+                      : 'ยังไม่เชื่อมฐานข้อมูลกลาง · คลิกเพื่อเข้าสู่ระบบ Google ให้ทุกเครื่องเห็นข้อมูลตรงกัน'
                   }
-                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 min-w-[44px] h-11 text-xs font-medium rounded-xl border transition-colors cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98] ${
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 min-w-[44px] h-11 text-xs font-semibold rounded-xl border transition-colors cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98] ${
                     cloudUserLabel
                       ? 'bg-[#FBF7EE] border-[#DFC996] text-[#8A6820] hover:bg-[#F5EBD4]'
-                      : 'bg-[#F5F2EB] border-[#E0D9CA] text-zinc-700 hover:bg-[#EBE5D9]'
+                      : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
                   }`}
                 >
                   {cloudUserLabel ? (
                     <>
                       <Cloud className="w-4 h-4 text-[#9B7A36]" />
-                      <span className="hidden xl:inline max-w-[100px] truncate">{cloudUserLabel}</span>
+                      <span className="hidden xl:inline max-w-[115px] truncate">{cloudUserLabel}</span>
                     </>
                   ) : (
                     <>
-                      <CloudOff className="w-4 h-4 text-zinc-500" />
-                      <span className="hidden xl:inline">ซิงค์คลาวด์</span>
+                      <CloudOff className="w-4 h-4 text-amber-700" />
+                      <span className="hidden md:inline">เชื่อมคลาวด์</span>
                     </>
                   )}
                 </button>

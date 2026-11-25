@@ -8,6 +8,7 @@ import {
 import {
   collection,
   doc,
+  getDoc,
   getDocFromServer,
   getDocs,
   getFirestore,
@@ -428,24 +429,74 @@ function mapDocToPublicStatus(
   };
 }
 
+export async function checkIsAdminRecord(uid: string): Promise<boolean> {
+  const path = `admins/${uid}`;
+  try {
+    const snap = await getDoc(doc(db, 'admins', uid));
+    return snap.exists();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+  }
+}
+
+export async function fetchExistingPublicStatusesForSync(
+  uid: string,
+  isAdmin: boolean
+): Promise<Map<string, LoanPublicStatus>> {
+  const path = 'loan_public_status';
+  const result = new Map<string, LoanPublicStatus>();
+  try {
+    const source = isAdmin
+      ? collection(db, path)
+      : query(collection(db, path), where('ownerId', '==', uid));
+    const snap = await getDocs(source);
+    snap.forEach((docSnap) => {
+      const mapped = mapDocToPublicStatus(
+        docSnap.id,
+        docSnap.data() as Record<string, unknown>
+      );
+      if (mapped) {
+        result.set(mapped.caseId, mapped);
+      }
+    });
+    return result;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
 export async function searchPublicLoanStatus(
   queryText: string
 ): Promise<LoanPublicStatus[]> {
   const raw = (queryText || '').trim();
   if (!raw) return [];
 
-  const publicCol = collection(db, 'loan_public_status');
+  const path = 'loan_public_status';
+  const publicCol = collection(db, path);
   const digits = normalizePhoneDigits(raw);
   const resultsMap = new Map<string, LoanPublicStatus>();
 
   // 1) If query has >= 4 phone digits (and mostly digits), query by phoneHash (full) or phoneLast4
   const isPhoneStyle = /^[0-9+\-\s()]+$/.test(raw) && digits.length >= 4;
   if (isPhoneStyle) {
-    if (digits.length >= 9) {
-      const pHash = await hashPhoneForLookup(digits);
-      if (pHash) {
+    try {
+      if (digits.length >= 9) {
+        const pHash = await hashPhoneForLookup(digits);
+        if (pHash) {
+          const snap = await getDocs(
+            query(publicCol, where('phoneHash', '==', pHash), limit(15))
+          );
+          snap.forEach((docSnap) => {
+            const mapped = mapDocToPublicStatus(
+              docSnap.id,
+              docSnap.data() as Record<string, unknown>
+            );
+            if (mapped) resultsMap.set(mapped.caseId, mapped);
+          });
+        }
+      } else if (digits.length >= 4) {
         const snap = await getDocs(
-          query(publicCol, where('phoneHash', '==', pHash), limit(15))
+          query(publicCol, where('phoneLast4', '==', digits.slice(-4)), limit(15))
         );
         snap.forEach((docSnap) => {
           const mapped = mapDocToPublicStatus(
@@ -455,17 +506,8 @@ export async function searchPublicLoanStatus(
           if (mapped) resultsMap.set(mapped.caseId, mapped);
         });
       }
-    } else if (digits.length === 4) {
-      const snap = await getDocs(
-        query(publicCol, where('phoneLast4', '==', digits), limit(15))
-      );
-      snap.forEach((docSnap) => {
-        const mapped = mapDocToPublicStatus(
-          docSnap.id,
-          docSnap.data() as Record<string, unknown>
-        );
-        if (mapped) resultsMap.set(mapped.caseId, mapped);
-      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
     }
     return Array.from(resultsMap.values());
   }
@@ -478,21 +520,25 @@ export async function searchPublicLoanStatus(
   }
 
   const prefix = graphemes.slice(0, 3).join('').toLowerCase();
-  const snap = await getDocs(
-    query(
-      publicCol,
-      where('namePrefix3', '>=', prefix),
-      where('namePrefix3', '<=', `${prefix}\uf8ff`),
-      limit(20)
-    )
-  );
-  snap.forEach((docSnap) => {
-    const mapped = mapDocToPublicStatus(
-      docSnap.id,
-      docSnap.data() as Record<string, unknown>
+  try {
+    const snap = await getDocs(
+      query(
+        publicCol,
+        where('namePrefix3', '>=', prefix),
+        where('namePrefix3', '<=', `${prefix}\uf8ff`),
+        limit(20)
+      )
     );
-    if (mapped) resultsMap.set(mapped.caseId, mapped);
-  });
+    snap.forEach((docSnap) => {
+      const mapped = mapDocToPublicStatus(
+        docSnap.id,
+        docSnap.data() as Record<string, unknown>
+      );
+      if (mapped) resultsMap.set(mapped.caseId, mapped);
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
 
   return Array.from(resultsMap.values());
 }
