@@ -242,7 +242,9 @@ service cloud.firestore {
     // Real-time synchronized plot state overrides (non-PII project catalog data)
     match /plot_overrides/{plotId} {
       allow get: if isVerifiedUser() && isValidPlotId(plotId);
-      allow list: if isVerifiedUser() && resource.data.plotId is string;
+      allow list: if isVerifiedUser() &&
+        request.query.limit != null &&
+        request.query.limit <= 200;
 
       allow create: if isVerifiedUser() &&
         isValidPlotId(plotId) &&
@@ -251,11 +253,13 @@ service cloud.firestore {
       allow update: if isVerifiedUser() &&
         isValidPlotId(plotId) &&
         isValidPlotOverride(incoming(), plotId) &&
+        resource != null &&
         incoming().diff(existing()).affectedKeys().hasOnly(['houseNumber', 'price', 'status', 'note', 'updatedAt', 'updatedBy']) &&
         (isAdmin() || existing().status != 'sold');
 
       allow delete: if isVerifiedUser() &&
         isValidPlotId(plotId) &&
+        resource != null &&
         (isAdmin() || existing().status != 'sold');
     }
 
@@ -291,7 +295,7 @@ service cloud.firestore {
     match /loan_cases/{caseId} {
       allow get: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
-        (isAdmin() || existing().ownerId == request.auth.uid);
+        (isAdmin() || (resource != null && existing().ownerId == request.auth.uid));
 
       allow list: if isVerifiedUser() &&
         (isAdmin() || resource.data.ownerId == request.auth.uid);
@@ -305,6 +309,7 @@ service cloud.firestore {
       allow update: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
         isValidLoanCase(incoming(), caseId) &&
+        resource != null &&
         (isAdmin() || (existing().keys().hasAny(['ownerId']) && existing().ownerId == request.auth.uid)) && (
           (
             incoming().ownerId == existing().ownerId &&
@@ -323,13 +328,16 @@ service cloud.firestore {
 
       allow delete: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
+        resource != null &&
         (isAdmin() || (existing().keys().hasAny(['ownerId']) && existing().ownerId == request.auth.uid));
     }
 
     // Zero-PII customer search lookup collection (only masked name 3chars+xxxx, phone hash/last4, idCardHash, bank status; no project prices)
     match /loan_public_status/{caseId} {
       allow get: if isValidCaseId(caseId);
-      allow list: if resource.data.caseId is string || resource.data.plotId is string;
+      allow list: if isAdmin() ||
+        (isVerifiedUser() && resource.data.ownerId == request.auth.uid) ||
+        (request.query.limit != null && request.query.limit <= 20);
 
       allow create: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
@@ -340,6 +348,7 @@ service cloud.firestore {
       allow update: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
         isValidLoanPublicStatus(incoming(), caseId) &&
+        resource != null &&
         (isAdmin() || (existing().keys().hasAny(['ownerId']) && existing().ownerId == request.auth.uid)) && (
           (
             incoming().ownerId == existing().ownerId &&
@@ -389,6 +398,7 @@ service cloud.firestore {
 
       allow delete: if isVerifiedUser() &&
         isValidCaseId(caseId) &&
+        resource != null &&
         (isAdmin() || (existing().keys().hasAny(['ownerId']) && existing().ownerId == request.auth.uid));
     }
   }

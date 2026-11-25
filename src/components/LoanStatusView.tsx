@@ -87,7 +87,10 @@ interface LoanStatusViewProps {
     onResults: (records: LoanPublicStatus[]) => void,
     onError: (err: unknown) => void
   ) => () => void;
-  onSaveCase: (loanCase: LoanCase, isNew: boolean) => Promise<void> | void;
+  onSaveCase: (
+    loanCase: LoanCase,
+    isNew: boolean
+  ) => Promise<{ savedToCloud: boolean; errorMessage?: string } | void> | void;
   onImportCases?: (cases: LoanCase[]) => Promise<number> | number;
   onDeleteCase: (caseId: string) => Promise<void> | void;
   initialPlotId?: string | null;
@@ -506,11 +509,26 @@ export function LoanStatusView({
 
     setIsSubmittingForm(true);
     try {
-      await onSaveCase(nextCase, isNew);
+      const saveResult = await onSaveCase(nextCase, isNew);
       playSuccessSound();
       setIsFormOpen(false);
       setEditingCaseId(null);
       setFormError(null);
+      if (saveResult && typeof saveResult === 'object' && 'savedToCloud' in saveResult) {
+        if (saveResult.savedToCloud) {
+          setDbFeedback(
+            `บันทึกข้อมูลลูกค้าแปลง ${nextCase.plotId} ลงฐานข้อมูลกลางเรียบร้อย · ลูกค้าทุกคนค้นหาด้วยชื่อ/เบอร์โทรและเข้าดูด้วยเลขบัตรประชาชน 13 หลักได้ทันที`
+          );
+        } else if (saveResult.errorMessage) {
+          setDbFeedback(
+            `บันทึกไว้ในเครื่องชั่วคราว (ยังซิงค์ขึ้นฐานข้อมูลกลางไม่สำเร็จ — กรุณากด "ซิงค์ขึ้นฐานข้อมูลกลาง" อีกครั้ง)`
+          );
+        } else {
+          setDbFeedback(
+            'บันทึกไว้เฉพาะในเครื่องนี้ชั่วคราว · กรุณากด "เชื่อมต่อ Google" ด้านบนเพื่อให้ลูกค้าจากทุกเครื่องค้นหาข้อมูลนี้ได้'
+          );
+        }
+      }
     } catch {
       playErrorSound();
       setFormError('เกิดข้อผิดพลาดในการบันทึกข้อมูลลงฐานข้อมูลกลาง กรุณาลองใหม่อีกครั้ง');
@@ -981,12 +999,16 @@ export function LoanStatusView({
                 {!isSearchingRemote && !searchError && customerMatchedPublicCases.length === 0 && (
                   <div className="p-6 rounded-2xl bg-[#FAF8F4] border border-[#ECE7DC] text-center">
                     <p className="text-sm font-semibold text-[#14191F]">
-                      ไม่พบบัญชีที่ตรงกับคำค้นหา "{queryAnalysis.raw}"
+                      {queryAnalysis.isPhoneQuery && queryAnalysis.digits.length === 13
+                        ? 'ช่องนี้สำหรับค้นหาด้วยชื่อ 3 ตัวแรก หรือเบอร์โทรศัพท์'
+                        : `ไม่พบบัญชีที่ตรงกับคำค้นหา "${queryAnalysis.raw}"`}
                     </p>
                     <p className="mt-1 text-xs text-zinc-500">
-                      {queryAnalysis.isPhoneQuery &&
-                      queryAnalysis.digits.length >= 5 &&
-                      queryAnalysis.digits.length < 9
+                      {queryAnalysis.isPhoneQuery && queryAnalysis.digits.length === 13
+                        ? 'กรุณาค้นหาด้วยชื่อ 3 ตัวแรก หรือเบอร์โทรศัพท์ก่อน จากนั้นจึงกรอกเลขบัตรประชาชน 13 หลักเป็นรหัสผ่านในขั้นตอนถัดไป'
+                        : queryAnalysis.isPhoneQuery &&
+                          queryAnalysis.digits.length >= 5 &&
+                          queryAnalysis.digits.length < 9
                         ? 'สำหรับการค้นหาด้วยเบอร์โทรศัพท์ กรุณาพิมพ์ 4 หลักสุดท้าย หรือเบอร์ครบทั้ง 10 หลัก'
                         : 'ตรวจสอบตัวสะกดชื่อ 3 ตัวแรก หรือเบอร์โทรศัพท์ 4 ตัวท้าย / 10 หลักอีกครั้ง หรือติดต่อที่ปรึกษาการขาย'}
                     </p>
@@ -1692,6 +1714,39 @@ export function LoanStatusView({
                 </div>
               </div>
 
+              {!isCloudConnected ? (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-start gap-2">
+                    <CloudOff className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                    <div className="leading-relaxed">
+                      <strong>ยังไม่ได้เชื่อมต่อ Google:</strong>{' '}
+                      หากกดบันทึกตอนนี้ ข้อมูลจะเก็บเฉพาะในเครื่องนี้เท่านั้น ลูกค้าจากเครื่องอื่นจะยังค้นหาไม่พบ กรุณาเชื่อมต่อ Google เพื่อบันทึกลงฐานข้อมูลกลาง
+                    </div>
+                  </div>
+                  {onConnectCloud && (
+                    <button
+                      type="button"
+                      data-sound="custom"
+                      onClick={() => {
+                        playClickSound();
+                        onConnectCloud();
+                      }}
+                      className="min-h-[38px] inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer whitespace-nowrap shrink-0"
+                    >
+                      <Cloud className="w-3.5 h-3.5" />
+                      เชื่อมต่อ Google ทันที
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="px-4 py-2.5 rounded-2xl bg-[#FBF7EE] border border-[#DFC996] text-xs text-[#8A6820] flex items-center gap-2">
+                  <Cloud className="w-4 h-4 shrink-0" />
+                  <span>
+                    เชื่อมต่อฐานข้อมูลกลางแล้ว — เมื่อกดบันทึก ลูกค้าทุกคนที่เปิดเว็บจะค้นหาและเข้าดูด้วยรหัสบัตรประชาชน 13 หลักได้ทันที
+                  </span>
+                </div>
+              )}
+
               <div className="pt-3 border-t border-[#ECE7DC] flex flex-wrap items-center justify-end gap-2.5">
                 <button
                   type="button"
@@ -1713,9 +1768,11 @@ export function LoanStatusView({
                   <Check className="w-4 h-4 text-[#E5C57B]" />
                   {isSubmittingForm
                     ? 'กำลังบันทึก...'
+                    : !isCloudConnected
+                    ? 'บันทึกเฉพาะเครื่องนี้ไว้ก่อน'
                     : editingCaseId
-                    ? 'บันทึกการแก้ไข'
-                    : 'บันทึกข้อมูลลูกค้า'}
+                    ? 'บันทึกการแก้ไขลงฐานข้อมูลกลาง'
+                    : 'บันทึกข้อมูลลูกค้าลงฐานข้อมูลกลาง'}
                 </button>
               </div>
             </form>

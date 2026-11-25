@@ -18,6 +18,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  limit,
   onSnapshot,
   query,
   setDoc,
@@ -419,7 +420,7 @@ export default function App() {
 
     const plotOverridesPath = 'plot_overrides';
     const unsubPlots = onSnapshot(
-      collection(db, plotOverridesPath),
+      query(collection(db, plotOverridesPath), limit(200)),
       (snapshot) => {
         const cloudOverrides: Record<string, Partial<PlotUnit>> = {};
         snapshot.forEach((docSnap) => {
@@ -701,9 +702,11 @@ export default function App() {
                 existingPub.modelName !== expectedPub.modelName ||
                 existingPub.overallStatus !== expectedPub.overallStatus ||
                 existingPub.maskedName !== expectedPub.maskedName ||
+                existingPub.maskedPhone !== expectedPub.maskedPhone ||
+                existingPub.note !== expectedPub.note ||
                 existingPub.idCardHash !== expectedPub.idCardHash ||
                 existingPub.phoneHash !== expectedPub.phoneHash ||
-                existingPub.banks.length !== expectedPub.banks.length
+                JSON.stringify(existingPub.banks) !== JSON.stringify(expectedPub.banks)
               ) {
                 const updatePub = await buildLoanPublicStatusUpdatePayload(cc, mergedPlot);
                 batchOps.push((batch) => batch.update(publicRef, updatePub));
@@ -1020,24 +1023,45 @@ export default function App() {
     []
   );
 
-  const handleCloudAuthClick = async () => {
+  const handleCloudAuthClick = async (): Promise<boolean> => {
     if (user) {
       await signOutUser();
       showTimedNotice(
         'ออกจากระบบฐานข้อมูลกลางแล้ว (การแก้ไขต่อจากนี้จะเก็บเฉพาะในเครื่องนี้)',
         'warning'
       );
-      return;
+      return false;
     }
     try {
       await signInWithGoogle();
       setForceCustomerView(false);
+      setCloudSyncAlert(null);
       playSuccessSound();
       showTimedNotice(
         'เชื่อมต่อฐานข้อมูลกลางสำเร็จ · ข้อมูลอัปเดตและบันทึกให้ทุกเครื่องเห็นตรงกันแบบเรียลไทม์แล้ว'
       );
-    } catch {
-      showTimedNotice('ยกเลิกการเชื่อมต่อ Google', 'warning');
+      return true;
+    } catch (error) {
+      const errObj = error as { code?: string; message?: string };
+      const code = errObj?.code || '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        showTimedNotice('ยกเลิกการเชื่อมต่อ Google', 'warning');
+      } else if (code === 'auth/popup-blocked') {
+        const msg =
+          'เบราว์เซอร์บล็อกหน้าต่างเข้าสู่ระบบ Google (Pop-up) กรุณาอนุญาต Pop-up หรือเปิดหน้าเว็บในแท็บใหม่เพื่อเชื่อมต่อฐานข้อมูลกลาง';
+        setCloudSyncAlert({ isPermission: false, message: msg });
+        showTimedNotice(msg, 'warning');
+      } else if (code === 'auth/unauthorized-domain') {
+        const msg =
+          'โดเมนนี้ยังไม่ได้อนุญาตในระบบยืนยันตัวตน Google (auth/unauthorized-domain) กรุณาใช้งานผ่าน URL หลักของระบบ';
+        setCloudSyncAlert({ isPermission: false, message: msg });
+        showTimedNotice(msg, 'warning');
+      } else {
+        const msg = `ไม่สามารถเชื่อมต่อ Google ได้ (${code || errObj?.message || 'ไม่ทราบสาเหตุ'})`;
+        setCloudSyncAlert({ isPermission: false, message: msg });
+        showTimedNotice(msg, 'warning');
+      }
+      return false;
     }
   };
 
@@ -1141,7 +1165,7 @@ export default function App() {
         const publicRef = doc(db, 'loan_public_status', lc.caseId);
 
         let privateExists = cloudLoanCaseIdsRef.current.has(lc.caseId);
-        if (!privateExists) {
+        if (!privateExists && isVerifiedAdmin) {
           const snap = await getDoc(privateRef);
           privateExists = snap.exists();
           if (privateExists) cloudLoanCaseIdsRef.current.add(lc.caseId);
@@ -1232,7 +1256,10 @@ export default function App() {
     }
   };
 
-  const handleSaveLoanCase = async (loanCase: LoanCase) => {
+  const handleSaveLoanCase = async (
+    loanCase: LoanCase,
+    isNew = false
+  ): Promise<{ savedToCloud: boolean; errorMessage?: string }> => {
     const sanitized = sanitizeLoanCase({
       ...loanCase,
       ownerId: loanCase.ownerId || user?.uid,
@@ -1256,12 +1283,16 @@ export default function App() {
         const privateRef = doc(db, 'loan_cases', sanitized.caseId);
         const publicRef = doc(db, 'loan_public_status', sanitized.caseId);
 
+        let privateExists = !isNew && cloudLoanCaseIdsRef.current.has(sanitized.caseId);
         let existingPrivateData: Record<string, unknown> | undefined;
-        const existingPrivateSnap = await getDoc(privateRef);
-        const privateExists = existingPrivateSnap.exists();
-        if (privateExists) {
-          cloudLoanCaseIdsRef.current.add(sanitized.caseId);
-          existingPrivateData = existingPrivateSnap.data() as Record<string, unknown>;
+
+        if (!isNew && (privateExists || isVerifiedAdmin)) {
+          const existingPrivateSnap = await getDoc(privateRef);
+          privateExists = existingPrivateSnap.exists();
+          if (privateExists) {
+            cloudLoanCaseIdsRef.current.add(sanitized.caseId);
+            existingPrivateData = existingPrivateSnap.data() as Record<string, unknown>;
+          }
         }
 
         if (!privateExists) {
@@ -1274,22 +1305,29 @@ export default function App() {
           );
         }
 
-        const existingPublic = await getDoc(publicRef);
-        if (existingPublic.exists()) {
-          batch.update(
-            publicRef,
-            await buildLoanPublicStatusUpdatePayload(
-              sanitized,
-              targetPlot,
-              existingPublic.data() as Record<string, unknown>,
-              user.uid
-            )
-          );
-        } else {
+        if (isNew) {
           batch.set(
             publicRef,
             await buildLoanPublicStatusCreatePayload(sanitized, targetPlot, user.uid)
           );
+        } else {
+          const existingPublic = await getDoc(publicRef);
+          if (existingPublic.exists()) {
+            batch.update(
+              publicRef,
+              await buildLoanPublicStatusUpdatePayload(
+                sanitized,
+                targetPlot,
+                existingPublic.data() as Record<string, unknown>,
+                user.uid
+              )
+            );
+          } else {
+            batch.set(
+              publicRef,
+              await buildLoanPublicStatusCreatePayload(sanitized, targetPlot, user.uid)
+            );
+          }
         }
 
         await batch.commit();
@@ -1298,6 +1336,7 @@ export default function App() {
         showTimedNotice(
           `บันทึกข้อมูลลูกค้าแปลง ${sanitized.plotId} ลงฐานข้อมูลกลางแล้ว · ลูกค้าและทุกเครื่องมองเห็นตรงกัน`
         );
+        return { savedToCloud: true };
       } catch (error) {
         setDirtyLoanCaseIds((prev) =>
           prev.includes(sanitized.caseId) ? prev : [...prev, sanitized.caseId]
@@ -1307,6 +1346,10 @@ export default function App() {
           'บันทึกข้อมูลไว้ในเครื่องเรียบร้อย (รอซิงค์ขึ้นฐานข้อมูลกลางอีกครั้ง)',
           'warning'
         );
+        return {
+          savedToCloud: false,
+          errorMessage: error instanceof Error ? error.message : 'ไม่สามารถเขียนข้อมูลลงฐานข้อมูลกลางได้',
+        };
       }
     } else {
       playSuccessSound();
@@ -1317,6 +1360,7 @@ export default function App() {
         'บันทึกไว้เฉพาะในเครื่องนี้ชั่วคราว · กรุณากด "เชื่อมต่อ Google" เพื่อให้ลูกค้าค้นหาจากเครื่องอื่นได้',
         'warning'
       );
+      return { savedToCloud: false };
     }
   };
 
@@ -1343,30 +1387,40 @@ export default function App() {
     if (user && user.emailVerified) {
       try {
         const batchOps: Array<(batch: WriteBatch) => void> = [];
+        const existingPublicMap = await fetchExistingPublicStatusesForSync(
+          user.uid,
+          isVerifiedAdmin
+        );
         for (const lc of cleanList) {
           const targetPlot = plots.find((p) => p.id === lc.plotId);
           const privateRef = doc(db, 'loan_cases', lc.caseId);
           const publicRef = doc(db, 'loan_public_status', lc.caseId);
-          const [privSnap, pubSnap] = await Promise.all([getDoc(privateRef), getDoc(publicRef)]);
-          if (privSnap.exists()) {
-            batchOps.push((batch) =>
-              batch.update(
-                privateRef,
-                buildLoanCaseUpdatePayload(lc, privSnap.data() as Record<string, unknown>, user.uid)
-              )
-            );
+          const knowExists = cloudLoanCaseIdsRef.current.has(lc.caseId);
+          if (knowExists || isVerifiedAdmin) {
+            const privSnap = await getDoc(privateRef);
+            if (privSnap.exists()) {
+              cloudLoanCaseIdsRef.current.add(lc.caseId);
+              batchOps.push((batch) =>
+                batch.update(
+                  privateRef,
+                  buildLoanCaseUpdatePayload(lc, privSnap.data() as Record<string, unknown>, user.uid)
+                )
+              );
+            } else {
+              cloudLoanCaseIdsRef.current.add(lc.caseId);
+              batchOps.push((batch) =>
+                batch.set(privateRef, buildLoanCaseCreatePayload(lc, user.uid))
+              );
+            }
           } else {
+            cloudLoanCaseIdsRef.current.add(lc.caseId);
             batchOps.push((batch) =>
               batch.set(privateRef, buildLoanCaseCreatePayload(lc, user.uid))
             );
           }
-          if (pubSnap.exists()) {
-            const pubUpd = await buildLoanPublicStatusUpdatePayload(
-              lc,
-              targetPlot,
-              pubSnap.data() as Record<string, unknown>,
-              user.uid
-            );
+
+          if (existingPublicMap.has(lc.caseId)) {
+            const pubUpd = await buildLoanPublicStatusUpdatePayload(lc, targetPlot, undefined, user.uid);
             batchOps.push((batch) => batch.update(publicRef, pubUpd));
           } else {
             const pubCreate = await buildLoanPublicStatusCreatePayload(lc, targetPlot, user.uid);

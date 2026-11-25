@@ -451,9 +451,16 @@ export function splitGraphemes(text: string): string[] {
 }
 
 export function stripThaiHonorific(rawName: string): string {
-  const trimmed = (rawName || '').replace(/[\r\n]+/g, ' ').trim().replace(/\s+/g, ' ');
+  const trimmed = (rawName || '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
   const stripped = trimmed
-    .replace(/^(คุณ|นาย|นางสาว|นาง|น\.ส\.|ด\.ช\.|ด\.ญ\.|ว่าที่ร้อยตรี|ดร\.|พ\.ต\.อ\.|ร\.ต\.อ\.)\s*/u, '')
+    .replace(
+      /^(คุณหญิง|คุณ|นาย|นางสาว|นาง|น\.ส\.|ด\.ช\.|ด\.ญ\.|ว่าที่ร้อยตรี|ดร\.|ผศ\.|รศ\.|ศ\.|พ\.ต\.อ\.|พ\.ต\.ท\.|พ\.ต\.ต\.|ร\.ต\.อ\.|ร\.ต\.ท\.|ร\.ต\.ต\.|ม\.ร\.ว\.|ม\.ล\.)\s*/u,
+      ''
+    )
     .trim();
   return stripped || trimmed;
 }
