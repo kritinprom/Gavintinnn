@@ -32,6 +32,7 @@ import { MiniCatFace } from './components/CuteWalkingCats';
 import { DataManageModal } from './components/DataManageModal';
 import { Header } from './components/Header';
 import { HouseModelsView } from './components/HouseModelsView';
+import { KavinIntroOverlay } from './components/KavinIntroOverlay';
 import { LoanStatusView } from './components/LoanStatusView';
 import { MasterPlanViewer } from './components/MasterPlanViewer';
 import { MusicJukeboxModal } from './components/MusicJukeboxModal';
@@ -40,7 +41,7 @@ import { UnitInspector } from './components/UnitInspector';
 import { UnlockModal } from './components/UnlockModal';
 import { WelcomeOverlay } from './components/WelcomeOverlay';
 import { DEFAULT_PLOTS } from './data/masterPlanPlots';
-import { VocalTrack } from './data/vocalPlaylist';
+import { LuxuryTrack } from './utils/luxuryMusic';
 import {
   auth,
   buildLoanCaseCreatePayload,
@@ -256,11 +257,12 @@ export default function App() {
   const [isManageModalOpen, setIsManageModalOpen] = useState<boolean>(false);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState<boolean>(false);
   const [isTabletInspectorOpen, setIsTabletInspectorOpen] = useState<boolean>(false);
+  const [showKavinIntro, setShowKavinIntro] = useState<boolean>(true);
   const [showWelcome, setShowWelcome] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => isSoundEnabled());
   const [isMusicHubOpen, setIsMusicHubOpen] = useState<boolean>(false);
-  const [activeVocalTrack, setActiveVocalTrack] = useState<VocalTrack | null>(null);
-  const [isVocalPlaying, setIsVocalPlaying] = useState<boolean>(false);
+  const [activeLuxuryTrack, setActiveLuxuryTrack] = useState<LuxuryTrack | null>(null);
+  const [isMusicPlaying, setIsMusicPlaying] = useState<boolean>(false);
   const [cloudSyncAlert, setCloudSyncAlert] = useState<{
     message: string;
     isPermission: boolean;
@@ -280,6 +282,7 @@ export default function App() {
     }
   });
   const [forceCustomerView, setForceCustomerView] = useState<boolean>(false);
+  const [showSellingPrices, setShowSellingPrices] = useState<boolean>(false);
   const [unlockModalMode, setUnlockModalMode] = useState<'sold' | 'staff'>('staff');
 
   // Firebase Auth & Realtime Sync state
@@ -1015,10 +1018,10 @@ export default function App() {
     }
   };
 
-  const handleVocalActiveChange = useCallback(
-    (track: VocalTrack | null, playing: boolean) => {
-      setActiveVocalTrack(track);
-      setIsVocalPlaying(playing);
+  const handleMusicActiveChange = useCallback(
+    (track: LuxuryTrack | null, playing: boolean) => {
+      setActiveLuxuryTrack(track);
+      setIsMusicPlaying(playing);
     },
     []
   );
@@ -1627,6 +1630,7 @@ export default function App() {
     : null;
 
   const isStaffMode = !forceCustomerView && (staffUnlocked || isVerifiedAdmin);
+  const effectiveShowPrices = isStaffMode && showSellingPrices;
   const pendingSyncCount = dirtyPlotIds.length + dirtyLoanCaseIds.length;
 
   return (
@@ -1641,6 +1645,7 @@ export default function App() {
           onExitStaffMode={() => {
             setStaffUnlocked(false);
             setSoldUnlocked(false);
+            setShowSellingPrices(false);
             setForceCustomerView(true);
             setIsManageModalOpen(false);
             setShowWelcome(false);
@@ -1651,8 +1656,8 @@ export default function App() {
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
           activeMusicLabel={
-            activeVocalTrack
-              ? `${activeVocalTrack.title}${isVocalPlaying ? '' : ' (พัก)'}`
+            activeLuxuryTrack
+              ? `${activeLuxuryTrack.title}${isMusicPlaying ? '' : ' (พัก)'}`
               : null
           }
           onOpenMusicHub={() => setIsMusicHubOpen(true)}
@@ -1665,6 +1670,8 @@ export default function App() {
           cloudUserLabel={cloudUserLabel}
           onCloudAuthClick={handleCloudAuthClick}
           onOpenManageModal={() => setIsManageModalOpen(true)}
+          showSellingPrices={effectiveShowPrices}
+          onToggleShowPrices={() => setShowSellingPrices((v) => !v)}
         />
 
         {isStaffMode && !isCloudConnected && (
@@ -1810,7 +1817,9 @@ export default function App() {
                     </h1>
 
                     <p className="mt-2.5 text-xs sm:text-sm max-w-xl leading-relaxed text-zinc-300">
-                      สำรวจผังโครงการ บ้านเลขที่จริง ราคาขายล่าสุด ค่าส่วนกลาง ค่างวดผ่อนชำระ และเช็คสถานะสินเชื่อธนาคารครบทั้ง 143 แปลง (
+                      {effectiveShowPrices
+                        ? 'สำรวจผังโครงการ บ้านเลขที่จริง ราคาขายล่าสุด ค่าส่วนกลาง ค่างวดผ่อนชำระ และเช็คสถานะสินเชื่อธนาคารครบทั้ง 143 แปลง ('
+                        : 'สำรวจผังโครงการ บ้านเลขที่จริง แบบบ้าน และเช็คสถานะสินเชื่อธนาคารครบทั้ง 143 แปลง ('}
                       {soldUnlocked
                         ? 'กำลังปลดล็อกแก้ไขแปลงที่ขายแล้ว'
                         : 'แปลงที่ขายแล้วถูกล็อก · ปลดล็อกแก้ไขได้ด้วยรหัสผ่าน'}
@@ -1866,14 +1875,14 @@ export default function App() {
                         playClickSound();
                         setIsMusicHubOpen(true);
                       }}
-                      title="เลือกฟังเพลงมีคนร้อง: บ้านของหัวใจ เพลงเกี่ยวกับบ้าน และเพลงใหม่ LISA"
+                      title="เลือกฟังเพลงบรรเลงลักชัวรี 20 เพลง (Grand Piano · Harp · Hotel Lounge · Strings)"
                       className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-[#E5C57B] bg-white/8 hover:bg-white/16 border border-[#C59B48]/35 rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98]"
                     >
                       <Music className="w-3.5 h-3.5 shrink-0" />
                       <span>
-                        {activeVocalTrack
-                          ? `กำลังเล่น: ${activeVocalTrack.title}`
-                          : 'เพลงบ้านของหัวใจ & LISA'}
+                        {activeLuxuryTrack
+                          ? `กำลังบรรเลง: ${activeLuxuryTrack.title}`
+                          : 'เพลงบรรเลงหรู (20 เพลง)'}
                       </span>
                     </button>
                   </div>
@@ -1914,9 +1923,13 @@ export default function App() {
                   </div>
                 </div>
                 <div className="sm:pl-5 sm:border-l sm:border-white/10">
-                  <div className="text-[11px] text-zinc-400">ช่วงราคาบ้านในโครงการ</div>
+                  <div className="text-[11px] text-zinc-400">
+                    {effectiveShowPrices ? 'ช่วงราคาบ้านในโครงการ' : 'แบบบ้านในโครงการ'}
+                  </div>
                   <div className="mt-0.5 text-base sm:text-lg font-bold font-mono-tabular text-[#E5C57B]">
-                    {formatMillion(projectSummary.minPrice)}–{formatMillion(projectSummary.maxPrice)} ลบ.
+                    {effectiveShowPrices
+                      ? `${formatMillion(projectSummary.minPrice)}–${formatMillion(projectSummary.maxPrice)} ลบ.`
+                      : '7 แบบบ้าน (ZERA – ZOTICUS)'}
                   </div>
                 </div>
               </div>
@@ -1940,6 +1953,7 @@ export default function App() {
                 onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
                 onResetFilters={handleResetFilters}
                 focusRequestTick={focusRequestTick}
+                showSellingPrices={effectiveShowPrices}
               />
 
               <div className="lg:sticky lg:top-[84px] lg:max-h-[calc(100dvh-100px)] lg:overflow-y-auto rounded-2xl">
@@ -1953,6 +1967,7 @@ export default function App() {
                   isBookmarked={selectedPlot ? bookmarkedIds.includes(selectedPlot.id) : false}
                   onToggleBookmark={handleToggleBookmark}
                   canBookmarkMore={bookmarkedIds.length < 4}
+                  showSellingPrices={effectiveShowPrices}
                 />
               </div>
             </div>
@@ -1971,6 +1986,7 @@ export default function App() {
               onUpdatePlot={handleUpdatePlot}
               bookmarkedIds={bookmarkedIds}
               onToggleBookmark={handleToggleBookmark}
+              showSellingPrices={effectiveShowPrices}
             />
           )}
 
@@ -1978,6 +1994,7 @@ export default function App() {
             <HouseModelsView
               plots={plots}
               onSelectModelOnPlan={handleSelectModelOnPlan}
+              showSellingPrices={effectiveShowPrices}
             />
           )}
 
@@ -1995,6 +2012,7 @@ export default function App() {
                 playTabSwitchSound();
                 setActiveTab('plan');
               }}
+              showSellingPrices={effectiveShowPrices}
             />
           )}
 
@@ -2015,6 +2033,7 @@ export default function App() {
               onImportCases={handleImportLoanCases}
               onDeleteCase={handleDeleteLoanCase}
               initialPlotId={selectedPlotId}
+              showSellingPrices={effectiveShowPrices}
             />
           )}
             </>
@@ -2034,7 +2053,9 @@ export default function App() {
                 </div>
                 <p className="mt-2.5 text-xs leading-relaxed max-w-sm text-zinc-400">
                   {isStaffMode
-                    ? 'เว็บแพลตฟอร์มข้อมูลผังโครงการ บ้านเลขที่ ราคาขายล่าสุด ค่าส่วนกลาง คำนวณสินเชื่อ และติดตามสถานะธนาคารสำหรับลูกค้า ออกแบบเพื่อการใช้งานทั้งบนคอมพิวเตอร์และ iPad แบบเรียลไทม์'
+                    ? effectiveShowPrices
+                      ? 'เว็บแพลตฟอร์มข้อมูลผังโครงการ บ้านเลขที่ ราคาขายล่าสุด ค่าส่วนกลาง คำนวณสินเชื่อ และติดตามสถานะธนาคารสำหรับลูกค้า ออกแบบเพื่อการใช้งานทั้งบนคอมพิวเตอร์และ iPad แบบเรียลไทม์'
+                      : 'เว็บแพลตฟอร์มข้อมูลผังโครงการ บ้านเลขที่ แบบบ้าน และติดตามสถานะสินเชื่อธนาคารสำหรับลูกค้า ออกแบบเพื่อการใช้งานทั้งบนคอมพิวเตอร์และ iPad แบบเรียลไทม์'
                     : 'ระบบตรวจสอบและติดตามความคืบหน้าการยื่นกู้สินเชื่อธนาคารสำหรับลูกค้าโครงการ CENTRO พระราม 2 - พุทธบูชา 2'}
                 </p>
               </div>
@@ -2065,7 +2086,7 @@ export default function App() {
                       }}
                       className="text-left py-1 hover:text-white cursor-pointer transition-colors"
                     >
-                      ตารางบ้านเลขที่และราคา
+                      {effectiveShowPrices ? 'ตารางบ้านเลขที่และราคา' : 'ตารางบ้านเลขที่และแบบบ้าน'}
                     </button>
                     <button
                       type="button"
@@ -2120,7 +2141,7 @@ export default function App() {
                     className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer transition-colors"
                   >
                     <Music className="w-3.5 h-3.5" />
-                    เลือกเพลงบ้านของหัวใจ & LISA (34 เพลง)
+                    เลือกเพลงบรรเลงลักชัวรี (20 เพลง)
                   </button>
 
                   {isStaffMode && (
@@ -2139,9 +2160,9 @@ export default function App() {
                 </div>
 
                 <p className="mt-2.5 text-[11px] text-zinc-400">
-                  {activeVocalTrack
-                    ? `กำลังเล่นเพลงมีคนร้อง: ${activeVocalTrack.title} · ${activeVocalTrack.artist}`
-                    : 'เฉพาะเพลงมีคนร้อง 34 เพลง (บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · เพลงใหม่ LISA)'}
+                  {activeLuxuryTrack
+                    ? `กำลังบรรเลง: ${activeLuxuryTrack.title} · ${activeLuxuryTrack.subtitle}`
+                    : 'เฉพาะเพลงบรรเลงระดับลักชัวรี 20 บทเพลง (Grand Piano · Harp · Hotel Lounge · Velvet Strings)'}
                 </p>
               </div>
             </div>
@@ -2180,7 +2201,9 @@ export default function App() {
                   </span>
                 </div>
                 <div className="text-sm font-bold text-[#E5C57B] font-mono-tabular truncate">
-                  {formatMillion(selectedPlot.price)} ล้านบาท · {selectedPlot.model} ({selectedPlot.landSqWah.toFixed(1)} ตร.วา)
+                  {effectiveShowPrices
+                    ? `${formatMillion(selectedPlot.price)} ล้านบาท · ${selectedPlot.model} (${selectedPlot.landSqWah.toFixed(1)} ตร.วา)`
+                    : `บ้านเลขที่ ${selectedPlot.houseNumber} · แบบบ้าน ${selectedPlot.model} (${selectedPlot.landSqWah.toFixed(1)} ตร.วา)`}
                 </div>
               </div>
 
@@ -2300,12 +2323,17 @@ export default function App() {
           }}
         />
 
+        <KavinIntroOverlay
+          isOpen={showKavinIntro}
+          onEnter={() => setShowKavinIntro(false)}
+        />
+
         <MusicJukeboxModal
           isOpen={isMusicHubOpen}
           onClose={() => setIsMusicHubOpen(false)}
           onOpen={() => setIsMusicHubOpen(true)}
           isStaffMode={isStaffMode}
-          onVocalActiveChange={handleVocalActiveChange}
+          onMusicActiveChange={handleMusicActiveChange}
         />
       </div>
     </MotionConfig>

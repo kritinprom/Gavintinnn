@@ -6,11 +6,13 @@ import { calculateRequiredSalary, formatMillion, formatTHB } from '../utils/form
 interface HouseModelsViewProps {
   plots: PlotUnit[];
   onSelectModelOnPlan: (model: HouseModelId) => void;
+  showSellingPrices?: boolean;
 }
 
 export function HouseModelsView({
   plots,
   onSelectModelOnPlan,
+  showSellingPrices = false,
 }: HouseModelsViewProps) {
   return (
     <div className="space-y-6">
@@ -110,18 +112,22 @@ export function HouseModelsView({
                         {minWah.toFixed(1)} – {maxWah.toFixed(1)} ตร.วา
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-zinc-500">ช่วงราคา</span>
-                      <span className="font-mono-tabular font-bold text-[#0F3D2C]">
-                        {formatMillion(minPrice)} – {formatMillion(maxPrice)} ลบ.
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-zinc-500">เงินเดือนที่ควรกู้ได้ (DSR 40–80%)</span>
-                      <span className="font-mono-tabular font-semibold text-[#162742]">
-                        {`~${formatTHB(minSalary.maxSalary80)} – ${formatTHB(maxSalary.comfortableSalary40)} บ./ด.`}
-                      </span>
-                    </div>
+                    {showSellingPrices && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-zinc-500">ช่วงราคา</span>
+                          <span className="font-mono-tabular font-bold text-[#0F3D2C]">
+                            {formatMillion(minPrice)} – {formatMillion(maxPrice)} ลบ.
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-zinc-500">เงินเดือนที่ควรกู้ได้ (DSR 40–80%)</span>
+                          <span className="font-mono-tabular font-semibold text-[#162742]">
+                            {`~${formatTHB(minSalary.maxSalary80)} – ${formatTHB(maxSalary.comfortableSalary40)} บ./ด.`}
+                          </span>
+                        </div>
+                      </>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-zinc-500">จำนวนแปลง</span>
                       <span className="tabular-nums text-[#12261D]">

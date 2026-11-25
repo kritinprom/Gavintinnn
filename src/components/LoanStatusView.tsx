@@ -28,6 +28,8 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
+import { motion } from 'motion/react';
+import kavinPortraitImg from '../assets/images/kavin_luxury_theme_1795597066856.jpg';
 import { HOUSE_MODELS } from '../data/houseModels';
 import { getDatabaseStorageInfo, sanitizeLoanCase } from '../firebase';
 import {
@@ -94,6 +96,7 @@ interface LoanStatusViewProps {
   onImportCases?: (cases: LoanCase[]) => Promise<number> | number;
   onDeleteCase: (caseId: string) => Promise<void> | void;
   initialPlotId?: string | null;
+  showSellingPrices?: boolean;
 }
 
 type LoanSubMode = 'customer' | 'manage';
@@ -145,6 +148,7 @@ export function LoanStatusView({
   onImportCases,
   onDeleteCase,
   initialPlotId,
+  showSellingPrices = false,
 }: LoanStatusViewProps) {
   const [subMode, setSubMode] = useState<LoanSubMode>(isStaffMode ? 'manage' : 'customer');
   const [customerQuery, setCustomerQuery] = useState<string>('');
@@ -787,6 +791,35 @@ export function LoanStatusView({
             </p>
           </div>
 
+          {effectiveSubMode === 'customer' && !isStaffMode && (
+            <div className="relative flex items-center justify-center lg:justify-end shrink-0">
+              <motion.div
+                animate={{ x: [-14, 14, -14] }}
+                transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+                className="flex items-center gap-3.5 px-4 py-2.5 rounded-2xl bg-white/8 border border-[#C59B48]/35 backdrop-blur-xs"
+              >
+                <div className="p-0.5 rounded-2xl bg-gradient-to-b from-[#F5DDA0] via-[#C59B48] to-[#7A5B1B] shadow-sm shrink-0">
+                  <div className="w-12 h-14 rounded-[14px] overflow-hidden bg-[#14191F]">
+                    <img
+                      src={kavinPortraitImg}
+                      alt="กวิน ที่ปรึกษาโครงการ"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover object-[50%_14%] brightness-[1.02] contrast-[1.03]"
+                    />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm font-bold text-[#F7E3AC] font-display leading-snug">
+                    มาเช็คผลสินเชื่อกับกวินกันนะค้าบบ
+                  </div>
+                  <div className="text-[11px] text-zinc-300 truncate">
+                    Kavin · Private Mortgage Concierge
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
           {isStaffMode && (
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <div className="inline-flex items-center p-1 rounded-xl bg-white/8 border border-white/15 gap-1">
@@ -942,7 +975,13 @@ export function LoanStatusView({
                             >
                               {cand.maskedPhone && <span>{cand.maskedPhone}</span>}
                               {cand.maskedPhone && <span aria-hidden="true">·</span>}
-                              <span>แปลง {cand.plotId}</span>
+                              <span>บ้านเลขที่ {cand.houseNumber || '-'}</span>
+                              {cand.modelName && (
+                                <>
+                                  <span aria-hidden="true">·</span>
+                                  <span>แบบบ้าน {cand.modelName}</span>
+                                </>
+                              )}
                             </div>
                           </div>
 
@@ -1047,7 +1086,8 @@ export function LoanStatusView({
                     </div>
 
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#F5F2EB] border border-[#DFD8C8] text-xs font-mono-tabular text-[#14191F]">
-                      แปลง {selectedCandidate.plotId} · {selectedCandidate.houseNumber}
+                      บ้านเลขที่ {selectedCandidate.houseNumber || '-'}
+                      {selectedCandidate.modelName ? ` · แบบบ้าน ${selectedCandidate.modelName}` : ''}
                     </span>
                   </div>
 
@@ -1463,7 +1503,8 @@ export function LoanStatusView({
                   >
                     {plots.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.id} · {p.houseNumber} · {p.model} ({formatMillion(p.price)} ลบ.)
+                        {p.id} · บ้านเลขที่ {p.houseNumber} · แบบบ้าน {p.model}
+                        {showSellingPrices ? ` (${formatMillion(p.price)} ลบ.)` : ''}
                       </option>
                     ))}
                   </select>
@@ -1876,7 +1917,8 @@ export function LoanStatusView({
                             </div>
                             {plot && (
                               <div className="text-xs text-zinc-500 font-mono-tabular">
-                                {plot.houseNumber} · {model?.name ?? plot.model} · {formatMillion(plot.price)} ลบ.
+                                {plot.houseNumber} · {model?.name ?? plot.model}
+                                {showSellingPrices ? ` · ${formatMillion(plot.price)} ลบ.` : ''}
                               </div>
                             )}
                           </td>

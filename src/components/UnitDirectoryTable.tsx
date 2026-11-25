@@ -37,6 +37,7 @@ interface UnitDirectoryTableProps {
   onUpdatePlot: (id: string, patch: Partial<PlotUnit>) => void;
   bookmarkedIds: string[];
   onToggleBookmark: (id: string) => void;
+  showSellingPrices?: boolean;
 }
 
 type SortKey = 'id' | 'houseNumber' | 'landSqWah' | 'price' | 'pricePerWah' | 'usableArea';
@@ -53,6 +54,7 @@ export function UnitDirectoryTable({
   onUpdatePlot,
   bookmarkedIds,
   onToggleBookmark,
+  showSellingPrices = false,
 }: UnitDirectoryTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -299,26 +301,30 @@ export function UnitDirectoryTable({
                     </button>
                   </th>
                   <th className="py-3.5 px-4 whitespace-nowrap">ทิศหน้าบ้าน</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap text-right">
-                    <button
-                      type="button"
-                      data-sound="custom"
-                      onClick={() => handleSort('price')}
-                      className="inline-flex items-center gap-1 hover:text-[#F5D06B] cursor-pointer"
-                    >
-                      ราคา (บาท) <SortIcon col="price" />
-                    </button>
-                  </th>
-                  <th className="py-3.5 px-4 whitespace-nowrap text-right">
-                    <button
-                      type="button"
-                      data-sound="custom"
-                      onClick={() => handleSort('pricePerWah')}
-                      className="inline-flex items-center gap-1 hover:text-[#F5D06B] cursor-pointer"
-                    >
-                      บาท/ตร.วา <SortIcon col="pricePerWah" />
-                    </button>
-                  </th>
+                  {showSellingPrices && (
+                    <>
+                      <th className="py-3.5 px-4 whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          data-sound="custom"
+                          onClick={() => handleSort('price')}
+                          className="inline-flex items-center gap-1 hover:text-[#F5D06B] cursor-pointer"
+                        >
+                          ราคา (บาท) <SortIcon col="price" />
+                        </button>
+                      </th>
+                      <th className="py-3.5 px-4 whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          data-sound="custom"
+                          onClick={() => handleSort('pricePerWah')}
+                          className="inline-flex items-center gap-1 hover:text-[#F5D06B] cursor-pointer"
+                        >
+                          บาท/ตร.วา <SortIcon col="pricePerWah" />
+                        </button>
+                      </th>
+                    </>
+                  )}
                   <th className="py-3.5 px-4 whitespace-nowrap">สถานะ</th>
                   <th className="py-3.5 px-4 whitespace-nowrap text-right">จัดการ</th>
                 </tr>
@@ -378,42 +384,46 @@ export function UnitDirectoryTable({
                       <td className="py-2.5 px-4 text-zinc-700 whitespace-nowrap">
                         ทิศ{plot.facing}
                       </td>
-                      <td className="py-2.5 px-4 text-right font-mono-tabular font-semibold text-zinc-900 whitespace-nowrap" onClick={(e) => isEditingThis && e.stopPropagation()}>
-                        {isEditingThis ? (
-                          <input
-                            type="number"
-                            step="any"
-                            value={draftPrice}
-                            onChange={(e) => setDraftPrice(e.target.value)}
-                            className="w-28 px-2 py-1 text-xs text-right font-mono-tabular border border-stone-300 rounded focus:outline-none focus:ring-2 focus:ring-[#164A37]"
-                          />
-                        ) : (
-                          <div>
-                            <div>
-                              {formatTHB(plot.price)}{' '}
-                              <span className="text-xs font-normal text-zinc-500">
-                                ({formatMillion(plot.price)} ลบ.)
-                              </span>
-                            </div>
-                            <div className="text-[11px] font-normal text-[#162742]/80">
-                              {(() => {
-                                const sal = calculateRequiredSalary(plot.price, 0, 5.25, 30, 0, 60);
-                                return `DSR 40–80%: ~${formatTHB(sal.maxSalary80)}–${formatTHB(sal.comfortableSalary40)} บ./ด.`;
-                              })()}
-                            </div>
-                            {plot.minLc !== undefined &&
-                              plot.totalPro !== undefined &&
-                              Math.abs(plot.price - (plot.minLc + plot.totalPro)) < 0.01 && (
-                                <div className="text-[10px] font-normal text-zinc-500">
-                                  {formatTHB(plot.minLc)} + {formatTHB(plot.totalPro)}
+                      {showSellingPrices && (
+                        <>
+                          <td className="py-2.5 px-4 text-right font-mono-tabular font-semibold text-zinc-900 whitespace-nowrap" onClick={(e) => isEditingThis && e.stopPropagation()}>
+                            {isEditingThis ? (
+                              <input
+                                type="number"
+                                step="any"
+                                value={draftPrice}
+                                onChange={(e) => setDraftPrice(e.target.value)}
+                                className="w-28 px-2 py-1 text-xs text-right font-mono-tabular border border-stone-300 rounded focus:outline-none focus:ring-2 focus:ring-[#164A37]"
+                              />
+                            ) : (
+                              <div>
+                                <div>
+                                  {formatTHB(plot.price)}{' '}
+                                  <span className="text-xs font-normal text-zinc-500">
+                                    ({formatMillion(plot.price)} ลบ.)
+                                  </span>
                                 </div>
-                              )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-mono-tabular text-zinc-600 whitespace-nowrap">
-                        {formatPricePerWah(plot.price, plot.landSqWah)}
-                      </td>
+                                <div className="text-[11px] font-normal text-[#162742]/80">
+                                  {(() => {
+                                    const sal = calculateRequiredSalary(plot.price, 0, 5.25, 30, 0, 60);
+                                    return `DSR 40–80%: ~${formatTHB(sal.maxSalary80)}–${formatTHB(sal.comfortableSalary40)} บ./ด.`;
+                                  })()}
+                                </div>
+                                {plot.minLc !== undefined &&
+                                  plot.totalPro !== undefined &&
+                                  Math.abs(plot.price - (plot.minLc + plot.totalPro)) < 0.01 && (
+                                    <div className="text-[10px] font-normal text-zinc-500">
+                                      {formatTHB(plot.minLc)} + {formatTHB(plot.totalPro)}
+                                    </div>
+                                  )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono-tabular text-zinc-600 whitespace-nowrap">
+                            {formatPricePerWah(plot.price, plot.landSqWah)}
+                          </td>
+                        </>
+                      )}
                       <td className="py-2.5 px-4 whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${stStyle.text}`}>
                           <span className={`w-2 h-2 rounded-full shrink-0 ${stStyle.dotBg}`} />

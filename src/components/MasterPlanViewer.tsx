@@ -29,6 +29,7 @@ interface MasterPlanViewerProps {
   onFiltersChange: (next: Partial<PlotFilterState>) => void;
   onResetFilters: () => void;
   focusRequestTick: number;
+  showSellingPrices?: boolean;
 }
 
 const MASTER_PLAN_IMAGE = '/assets/aistudio/_______60c0cee6.jpg';
@@ -52,6 +53,7 @@ export function MasterPlanViewer({
   onFiltersChange,
   onResetFilters,
   focusRequestTick,
+  showSellingPrices = false,
 }: MasterPlanViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState<number>(1);
@@ -437,7 +439,7 @@ export function MasterPlanViewer({
               [
                 { id: 'plot', label: 'รหัสแปลง' },
                 { id: 'houseNumber', label: 'บ้านเลขที่' },
-                { id: 'price', label: 'ราคา (ลบ.)' },
+                ...(showSellingPrices ? [{ id: 'price' as OverlayMode, label: 'ราคา (ลบ.)' }] : []),
                 { id: 'status', label: 'สถานะ' },
               ] as { id: OverlayMode; label: string }[]
             ).map((mode) => (
@@ -641,17 +643,20 @@ export function MasterPlanViewer({
                 const isMatched = filteredPlotIds.has(plot.id);
                 const statusStyle = STATUS_STYLES[plot.status];
 
+                const effectiveOverlay: OverlayMode =
+                  !showSellingPrices && overlayMode === 'price' ? 'houseNumber' : overlayMode;
+
                 let labelText = plot.id;
-                if (overlayMode === 'houseNumber') labelText = plot.houseNumber;
-                else if (overlayMode === 'price') labelText = formatMillion(plot.price);
-                else if (overlayMode === 'status') labelText = STATUS_SHORT_LABELS[plot.status];
+                if (effectiveOverlay === 'houseNumber') labelText = plot.houseNumber;
+                else if (effectiveOverlay === 'price') labelText = formatMillion(plot.price);
+                else if (effectiveOverlay === 'status') labelText = STATUS_SHORT_LABELS[plot.status];
 
                 // Scale marker gently with zoom so circles stay compact in overview and crisp when zoomed
                 const invScale = zoom > 1.35 ? 1 / Math.pow(zoom, 0.52) : 1;
                 const isWideLabel =
-                  overlayMode === 'houseNumber' ||
-                  overlayMode === 'price' ||
-                  overlayMode === 'status';
+                  effectiveOverlay === 'houseNumber' ||
+                  effectiveOverlay === 'price' ||
+                  effectiveOverlay === 'status';
 
                 return (
                   <button
@@ -671,7 +676,11 @@ export function MasterPlanViewer({
                       top: `${plot.y}%`,
                       transform: `translate(-50%, -50%) scale(${isSelected ? invScale * 1.28 : invScale})`,
                     }}
-                    aria-label={`แปลง ${plot.id} บ้านเลขที่ ${plot.houseNumber} แบบ ${plot.model} ราคา ${formatMillion(plot.price)} ล้านบาท`}
+                    aria-label={
+                      showSellingPrices
+                        ? `แปลง ${plot.id} บ้านเลขที่ ${plot.houseNumber} แบบ ${plot.model} ราคา ${formatMillion(plot.price)} ล้านบาท`
+                        : `แปลง ${plot.id} บ้านเลขที่ ${plot.houseNumber} แบบ ${plot.model}`
+                    }
                     className={`absolute z-20 aspect-square rounded-full flex items-center justify-center p-0 font-display tabular-nums font-semibold leading-none border-[1.5px] transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#164A37] overflow-hidden ${
                       isWideLabel
                         ? 'w-[18px] h-[18px] text-[4.8px] tracking-[-0.05em]'
@@ -712,9 +721,15 @@ export function MasterPlanViewer({
                 <span>ทิศ{hoveredPlot.facing}</span>
               </div>
               <div className="mt-1 flex items-center justify-between gap-4 text-xs">
-                <span className="font-mono-tabular font-semibold text-amber-300">
-                  {formatMillion(hoveredPlot.price)} ล้านบาท
-                </span>
+                {showSellingPrices ? (
+                  <span className="font-mono-tabular font-semibold text-amber-300">
+                    {formatMillion(hoveredPlot.price)} ล้านบาท
+                  </span>
+                ) : (
+                  <span className="font-mono-tabular text-stone-300">
+                    แบบบ้าน {hoveredPlot.model}
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1.5 text-stone-200">
                   <span className={`w-2 h-2 rounded-full ${STATUS_STYLES[hoveredPlot.status].dotBg}`} />
                   {STATUS_SHORT_LABELS[hoveredPlot.status]}

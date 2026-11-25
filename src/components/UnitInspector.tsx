@@ -42,6 +42,7 @@ interface UnitInspectorProps {
   isBookmarked: boolean;
   onToggleBookmark: (id: string) => void;
   canBookmarkMore: boolean;
+  showSellingPrices?: boolean;
 }
 
 const STORAGE_KEY_MORTGAGE = 'centro_rama2_mortgage_prefs_v1';
@@ -96,6 +97,7 @@ export function UnitInspector({
   isBookmarked,
   onToggleBookmark,
   canBookmarkMore,
+  showSellingPrices = false,
 }: UnitInspectorProps) {
   const uid = useId();
   const [isEditing, setIsEditing] = useState(false);
@@ -177,7 +179,9 @@ export function UnitInspector({
         </div>
         <p className="text-base font-bold text-[#14191F] font-display">เลือกแปลงบ้านบนผังโครงการ</p>
         <p className="mt-1.5 text-xs text-zinc-500 max-w-xs leading-relaxed">
-          แตะที่รหัสแปลง (เช่น A01, I05, N10) เพื่อดูบ้านเลขที่ ราคา ค่าส่วนกลาง และค่างวดผ่อนชำระเบื้องต้น
+          {showSellingPrices
+            ? 'แตะที่รหัสแปลง (เช่น A01, I05, N10) เพื่อดูบ้านเลขที่ ราคา ค่าส่วนกลาง และค่างวดผ่อนชำระเบื้องต้น'
+            : 'แตะที่รหัสแปลง (เช่น A01, I05, N10) เพื่อดูบ้านเลขที่ แบบบ้าน ขนาดที่ดิน และสถานะแปลง'}
         </p>
       </aside>
     );
@@ -273,25 +277,37 @@ export function UnitInspector({
           </div>
         </div>
 
-        {/* Highlighted Price Readout */}
+        {/* Highlighted Readout (House Model or Price) */}
         {(!isEditing || isLockedSold) && (
           <div className="mt-4 pt-4 border-t border-white/15 flex items-end justify-between gap-3">
-            <div>
-              <div className="text-[11px] text-emerald-100/75">
-                {hasOfficialBreakdown ? 'ราคารวม (MIN LC + TOTAL PRO)' : 'ราคาบ้านและที่ดิน (ประมาณการ)'}
-              </div>
-              <div className="mt-0.5 text-2xl sm:text-[26px] font-bold text-[#F5D06B] font-mono-tabular leading-tight">
-                {formatTHB(plot.price)} <span className="text-sm font-medium text-white/85">บาท</span>
-              </div>
-              <div className="mt-1 text-xs text-emerald-100/80 tabular-nums">
-                {formatMillion(plot.price)} ล้านบาท · {formatPricePerWah(plot.price, plot.landSqWah)} บ./ตร.วา
-              </div>
-              {hasOfficialBreakdown && plot.minLc !== undefined && plot.totalPro !== undefined && (
-                <div className="mt-1 text-[11px] text-emerald-100/65 font-mono-tabular">
-                  MIN LC {formatTHB(plot.minLc)} + TOTAL PRO {formatTHB(plot.totalPro)}
+            {showSellingPrices ? (
+              <div>
+                <div className="text-[11px] text-emerald-100/75">
+                  {hasOfficialBreakdown ? 'ราคารวม (MIN LC + TOTAL PRO)' : 'ราคาบ้านและที่ดิน (ประมาณการ)'}
                 </div>
-              )}
-            </div>
+                <div className="mt-0.5 text-2xl sm:text-[26px] font-bold text-[#F5D06B] font-mono-tabular leading-tight">
+                  {formatTHB(plot.price)} <span className="text-sm font-medium text-white/85">บาท</span>
+                </div>
+                <div className="mt-1 text-xs text-emerald-100/80 tabular-nums">
+                  {formatMillion(plot.price)} ล้านบาท · {formatPricePerWah(plot.price, plot.landSqWah)} บ./ตร.วา
+                </div>
+                {hasOfficialBreakdown && plot.minLc !== undefined && plot.totalPro !== undefined && (
+                  <div className="mt-1 text-[11px] text-emerald-100/65 font-mono-tabular">
+                    MIN LC {formatTHB(plot.minLc)} + TOTAL PRO {formatTHB(plot.totalPro)}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div className="text-[11px] text-[#E5C57B]/85">แบบบ้านและเลขบ้าน</div>
+                <div className="mt-0.5 text-xl sm:text-2xl font-bold text-[#F5D06B] font-display leading-tight">
+                  แบบบ้าน {modelSpec.name}
+                </div>
+                <div className="mt-1 text-xs text-zinc-300 tabular-nums">
+                  บ้านเลขที่ {plot.houseNumber} · พื้นที่ใช้สอย {modelSpec.usableAreaSqM} ตร.ม.
+                </div>
+              </div>
+            )}
 
             {isLockedSold ? (
               <button
@@ -400,7 +416,7 @@ export function UnitInspector({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className={`grid ${showSellingPrices ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5`}>
               <div>
                 <label className="block text-xs text-zinc-600 mb-1">บ้านเลขที่</label>
                 <input
@@ -410,16 +426,18 @@ export function UnitInspector({
                   className="w-full min-h-[44px] px-3 py-2 text-sm font-mono-tabular border border-[#DCD4C3] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F3D2C]"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-zinc-600 mb-1">ราคา (บาท)</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={draftPrice}
-                  onChange={(e) => setDraftPrice(e.target.value)}
-                  className="w-full min-h-[44px] px-3 py-2 text-sm font-mono-tabular border border-[#DCD4C3] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F3D2C]"
-                />
-              </div>
+              {showSellingPrices && (
+                <div>
+                  <label className="block text-xs text-zinc-600 mb-1">ราคา (บาท)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={draftPrice}
+                    onChange={(e) => setDraftPrice(e.target.value)}
+                    className="w-full min-h-[44px] px-3 py-2 text-sm font-mono-tabular border border-[#DCD4C3] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F3D2C]"
+                  />
+                </div>
+              )}
             </div>
 
             <div>
@@ -551,7 +569,8 @@ export function UnitInspector({
         </div>
       </div>
 
-      {/* Mortgage Quick Estimator */}
+      {/* Mortgage Quick Estimator (Only when prices enabled) */}
+      {showSellingPrices && (
       <div className="px-5 py-4 border-b border-[#EAE4D7] bg-[#F8F6F0] space-y-3.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-semibold text-[#12261D]">คำนวณค่างวดผ่อนชำระเบื้องต้น</span>
@@ -842,6 +861,7 @@ export function UnitInspector({
           )}
         </div>
       </div>
+      )}
 
       {/* Action Footer */}
       <div className="p-4 flex items-center gap-2.5 bg-white">

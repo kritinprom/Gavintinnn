@@ -2,6 +2,8 @@ import {
   Cloud,
   CloudOff,
   Columns2,
+  Eye,
+  EyeOff,
   Home,
   Landmark,
   Lock,
@@ -40,6 +42,8 @@ interface HeaderProps {
   cloudUserLabel: string | null;
   onCloudAuthClick: () => void;
   onOpenManageModal: () => void;
+  showSellingPrices?: boolean;
+  onToggleShowPrices?: () => void;
 }
 
 export function Header({
@@ -59,10 +63,17 @@ export function Header({
   cloudUserLabel,
   onCloudAuthClick,
   onOpenManageModal,
+  showSellingPrices = false,
+  onToggleShowPrices,
 }: HeaderProps) {
   const navItems: { id: ActiveTab; label: string; shortLabel: string; icon: typeof MapIcon }[] = [
     { id: 'plan', label: 'ผังโครงการ', shortLabel: 'ผัง', icon: MapIcon },
-    { id: 'directory', label: 'บ้านเลขที่และราคา', shortLabel: 'รายการ', icon: TableProperties },
+    {
+      id: 'directory',
+      label: showSellingPrices ? 'บ้านเลขที่และราคา' : 'บ้านเลขที่และแบบบ้าน',
+      shortLabel: 'รายการ',
+      icon: TableProperties,
+    },
     { id: 'models', label: 'แบบบ้าน 7 สไตล์', shortLabel: 'แบบบ้าน', icon: Home },
     {
       id: 'compare',
@@ -209,6 +220,39 @@ export function Header({
                     </>
                   )}
                 </button>
+
+                {onToggleShowPrices && (
+                  <button
+                    type="button"
+                    data-sound="custom"
+                    onClick={() => {
+                      playClickSound();
+                      onToggleShowPrices();
+                    }}
+                    title={
+                      showSellingPrices
+                        ? 'กำลังแสดงราคาขาย (คลิกเพื่อซ่อนราคาไม่ให้ลูกค้าเห็น)'
+                        : 'ซ่อนราคาขายอยู่ (คลิกเพื่อเปิดดูราคาเฉพาะเจ้าหน้าที่)'
+                    }
+                    className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 min-w-[44px] h-11 text-xs font-medium rounded-xl border transition-colors cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98] ${
+                      showSellingPrices
+                        ? 'bg-[#FBF7EE] border-[#DFC996] text-[#8A6820] hover:bg-[#F5EBD4]'
+                        : 'bg-white border-[#E0D9CA] text-zinc-500 hover:text-[#14191F]'
+                    }`}
+                  >
+                    {showSellingPrices ? (
+                      <>
+                        <Eye className="w-4 h-4 text-[#C59B48]" />
+                        <span className="hidden xl:inline">แสดงราคาอยู่</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-4 h-4" />
+                        <span className="hidden xl:inline">ซ่อนราคา</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </>
             )}
 
@@ -219,8 +263,8 @@ export function Header({
                 playClickSound();
                 onOpenMusicHub();
               }}
-              title="เปิดคลังเพลงมีคนร้อง (บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · LISA)"
-              aria-label="เปิดคลังเพลง"
+              title="เปิดคลังเพลงบรรเลงลักชัวรี (20 เพลง)"
+              aria-label="เปิดคลังเพลงบรรเลงลักชัวรี"
               className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 min-w-[44px] h-11 text-xs font-medium rounded-xl border transition-colors cursor-pointer shrink-0 active:scale-[0.98] whitespace-nowrap ${
                 activeMusicLabel
                   ? 'bg-[#FBF7EE] border-[#DFC996] text-[#8A6820] hover:bg-[#F5EBD4]'
@@ -233,7 +277,7 @@ export function Header({
                 }`}
               />
               <span className="hidden sm:inline max-w-[125px] truncate">
-                {activeMusicLabel ? activeMusicLabel : 'เพลง & LISA'}
+                {activeMusicLabel ? activeMusicLabel : 'เพลงบรรเลงหรู'}
               </span>
             </button>
 

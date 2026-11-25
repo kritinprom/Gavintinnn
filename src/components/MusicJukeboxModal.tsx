@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Disc3,
-  ExternalLink,
   Music,
   Pause,
   Play,
@@ -9,111 +8,38 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
+  Sparkles,
   Upload,
   Volume2,
   VolumeX,
   X,
 } from 'lucide-react';
 import {
-  VOCAL_CATEGORY_TABS,
-  VOCAL_PLAYLIST,
-  VocalCategory,
-  VocalTrack,
-} from '../data/vocalPlaylist';
+  LUXURY_CATEGORY_TABS,
+  LUXURY_PLAYLIST,
+  LuxuryCategory,
+  LuxuryTrack,
+  luxuryMusicEngine,
+} from '../utils/luxuryMusic';
 import {
   playCancelSound,
   playClickSound,
   playToggleSound,
 } from '../utils/soundEffects';
 
-interface YTPlayerInstance {
-  loadVideoById: (videoId: string) => void;
-  cueVideoById: (videoId: string) => void;
-  playVideo: () => void;
-  pauseVideo: () => void;
-  stopVideo: () => void;
-  mute: () => void;
-  unMute: () => void;
-  isMuted: () => boolean;
-  setVolume: (volume: number) => void;
-  getPlayerState: () => number;
-  destroy: () => void;
-}
-
-interface YTGlobal {
-  Player: new (
-    element: HTMLElement,
-    options: {
-      height?: string | number;
-      width?: string | number;
-      videoId?: string;
-      playerVars?: Record<string, string | number>;
-      events?: {
-        onReady?: () => void;
-        onStateChange?: (event: { data: number }) => void;
-        onError?: (event: { data: number }) => void;
-      };
-    }
-  ) => YTPlayerInstance;
-  PlayerState?: {
-    ENDED: number;
-    PLAYING: number;
-    PAUSED: number;
-    BUFFERING: number;
-    CUED: number;
-  };
-}
-
-declare global {
-  interface Window {
-    YT?: YTGlobal;
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
-
-let ytApiPromise: Promise<YTGlobal> | null = null;
-
-function loadYouTubeIframeApi(): Promise<YTGlobal> {
-  if (typeof window === 'undefined') {
-    return Promise.reject(new Error('No window'));
-  }
-  if (window.YT && window.YT.Player) {
-    return Promise.resolve(window.YT);
-  }
-  if (ytApiPromise) return ytApiPromise;
-
-  ytApiPromise = new Promise<YTGlobal>((resolve, reject) => {
-    const prevCallback = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      if (typeof prevCallback === 'function') prevCallback();
-      if (window.YT) {
-        resolve(window.YT);
-      } else {
-        reject(new Error('YouTube API unavailable'));
-      }
-    };
-
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[src="https://www.youtube.com/iframe_api"]'
-    );
-    if (!existing) {
-      const script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
-      script.async = true;
-      script.onerror = () => reject(new Error('Failed to load YouTube IFrame API'));
-      document.head.appendChild(script);
-    }
-  });
-
-  return ytApiPromise;
-}
-
 interface MusicJukeboxModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpen: () => void;
   isStaffMode: boolean;
-  onVocalActiveChange?: (activeTrack: VocalTrack | null, isPlaying: boolean) => void;
+  onMusicActiveChange?: (activeTrack: LuxuryTrack | null, isPlaying: boolean) => void;
+}
+
+function formatSeconds(sec: number): string {
+  const safe = Math.max(0, Math.floor(sec));
+  const m = Math.floor(safe / 60);
+  const s = safe % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 export function MusicJukeboxModal({
@@ -121,15 +47,27 @@ export function MusicJukeboxModal({
   onClose,
   onOpen,
   isStaffMode,
-  onVocalActiveChange,
+  onMusicActiveChange,
 }: MusicJukeboxModalProps) {
-  const [vocalCategory, setVocalCategory] = useState<VocalCategory>('all');
+  const [category, setCategory] = useState<LuxuryCategory>('all');
   const [searchText, setSearchText] = useState<string>('');
-  const [activeVocalTrack, setActiveVocalTrack] = useState<VocalTrack | null>(null);
-  const [isVocalPlaying, setIsVocalPlaying] = useState<boolean>(false);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [activeTrack, setActiveTrack] = useState<LuxuryTrack | null>(
+    () => luxuryMusicEngine.getSnapshot().track ?? LUXURY_PLAYLIST[0]
+  );
+  const [isPlaying, setIsPlaying] = useState<boolean>(
+    () => luxuryMusicEngine.getSnapshot().playing
+  );
+  const [waitingForGesture, setWaitingForGesture] = useState<boolean>(
+    () => luxuryMusicEngine.getSnapshot().waitingForGesture
+  );
+  const [isMuted, setIsMuted] = useState<boolean>(
+    () => luxuryMusicEngine.getSnapshot().muted
+  );
+  const [volume, setVolume] = useState<number>(() =>
+    Math.round(luxuryMusicEngine.getSnapshot().volume * 100)
+  );
   const [shuffleMode, setShuffleMode] = useState<boolean>(false);
-  const [embedBlockedCode, setEmbedBlockedCode] = useState<number | null>(null);
+  const [elapsedSec, setElapsedSec] = useState<number>(0);
 
   // Optional user-uploaded local audio file (MP3/M4A/WAV)
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
@@ -138,46 +76,46 @@ export function MusicJukeboxModal({
   const localAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const ytHostRef = useRef<HTMLDivElement | null>(null);
-  const ytPlayerRef = useRef<YTPlayerInstance | null>(null);
-  const ytReadyRef = useRef<boolean>(false);
-  const pendingVideoIdRef = useRef<string | null>(null);
-  const activeVocalTrackRef = useRef<VocalTrack | null>(null);
-  const filteredVocalTracksRef = useRef<VocalTrack[]>(VOCAL_PLAYLIST);
+  const activeTrackRef = useRef<LuxuryTrack | null>(null);
+  const lastTrackIdRef = useRef<string | null>(null);
+  const filteredTracksRef = useRef<LuxuryTrack[]>(LUXURY_PLAYLIST);
   const shuffleModeRef = useRef<boolean>(false);
+  const stepTrackRef = useRef<(direction: 'next' | 'prev') => void>(() => {});
 
   useEffect(() => {
-    activeVocalTrackRef.current = activeVocalTrack;
-  }, [activeVocalTrack]);
+    activeTrackRef.current = activeTrack;
+  }, [activeTrack]);
 
   useEffect(() => {
     shuffleModeRef.current = shuffleMode;
   }, [shuffleMode]);
 
   useEffect(() => {
-    onVocalActiveChange?.(activeVocalTrack, isVocalPlaying || isLocalAudioPlaying);
-  }, [activeVocalTrack, isVocalPlaying, isLocalAudioPlaying, onVocalActiveChange]);
+    onMusicActiveChange?.(
+      activeTrack,
+      (isPlaying && !waitingForGesture) || isLocalAudioPlaying
+    );
+  }, [activeTrack, isPlaying, waitingForGesture, isLocalAudioPlaying, onMusicActiveChange]);
 
-  const filteredVocalTracks = useMemo(() => {
+  const filteredTracks = useMemo(() => {
     const q = searchText.trim().toLowerCase();
-    return VOCAL_PLAYLIST.filter((track) => {
-      if (vocalCategory !== 'all' && track.category !== vocalCategory) {
+    return LUXURY_PLAYLIST.filter((track) => {
+      if (category !== 'all' && track.category !== category) {
         return false;
       }
       if (!q) return true;
       return (
         track.title.toLowerCase().includes(q) ||
-        track.artist.toLowerCase().includes(q) ||
-        track.albumOrOrigin.toLowerCase().includes(q) ||
+        track.subtitle.toLowerCase().includes(q) ||
         track.moodNote.toLowerCase().includes(q)
       );
     });
-  }, [vocalCategory, searchText]);
+  }, [category, searchText]);
 
   useEffect(() => {
-    filteredVocalTracksRef.current =
-      filteredVocalTracks.length > 0 ? filteredVocalTracks : VOCAL_PLAYLIST;
-  }, [filteredVocalTracks]);
+    filteredTracksRef.current =
+      filteredTracks.length > 0 ? filteredTracks : LUXURY_PLAYLIST;
+  }, [filteredTracks]);
 
   const stopLocalAudio = useCallback(() => {
     if (localAudioRef.current) {
@@ -186,40 +124,30 @@ export function MusicJukeboxModal({
     setIsLocalAudioPlaying(false);
   }, []);
 
-  const handleSelectVocalTrack = useCallback(
-    (track: VocalTrack) => {
+  const handleSelectTrack = useCallback(
+    (track: LuxuryTrack) => {
       playClickSound();
       stopLocalAudio();
-      setEmbedBlockedCode(null);
-      setActiveVocalTrack(track);
-      setIsVocalPlaying(true);
-
-      if (ytPlayerRef.current && ytReadyRef.current) {
-        try {
-          ytPlayerRef.current.loadVideoById(track.youtubeId);
-          if (isMuted) {
-            ytPlayerRef.current.mute();
-          } else {
-            ytPlayerRef.current.unMute();
-          }
-        } catch {
-          pendingVideoIdRef.current = track.youtubeId;
-        }
-      } else {
-        pendingVideoIdRef.current = track.youtubeId;
-      }
+      setActiveTrack(track);
+      setElapsedSec(0);
+      setIsPlaying(true);
+      luxuryMusicEngine.setVolume(volume / 100);
+      luxuryMusicEngine.setMuted(isMuted);
+      luxuryMusicEngine.start(track, () => {
+        stepTrackRef.current('next');
+      });
     },
-    [isMuted, stopLocalAudio]
+    [isMuted, stopLocalAudio, volume]
   );
 
-  const handleStepVocalTrack = useCallback(
+  const handleStepTrack = useCallback(
     (direction: 'next' | 'prev') => {
-      const pool = filteredVocalTracksRef.current;
+      const pool = filteredTracksRef.current;
       if (pool.length === 0) return;
 
-      const current = activeVocalTrackRef.current;
+      const current = activeTrackRef.current;
       if (!current) {
-        handleSelectVocalTrack(pool[0]);
+        handleSelectTrack(pool[0]);
         return;
       }
 
@@ -228,102 +156,58 @@ export function MusicJukeboxModal({
         if (pool[randomIdx].id === current.id) {
           randomIdx = (randomIdx + 1) % pool.length;
         }
-        handleSelectVocalTrack(pool[randomIdx]);
+        handleSelectTrack(pool[randomIdx]);
         return;
       }
 
       const idx = pool.findIndex((t) => t.id === current.id);
       if (idx === -1) {
-        handleSelectVocalTrack(pool[0]);
+        handleSelectTrack(pool[0]);
         return;
       }
       const nextIdx =
         direction === 'next' ? (idx + 1) % pool.length : (idx - 1 + pool.length) % pool.length;
-      handleSelectVocalTrack(pool[nextIdx]);
+      handleSelectTrack(pool[nextIdx]);
     },
-    [handleSelectVocalTrack]
+    [handleSelectTrack]
   );
 
-  // Initialize YouTube IFrame Player once the first vocal track is activated
   useEffect(() => {
-    if (!activeVocalTrack) return;
-    if (ytPlayerRef.current) return;
-    let cancelled = false;
+    stepTrackRef.current = handleStepTrack;
+  }, [handleStepTrack]);
 
-    void loadYouTubeIframeApi()
-      .then((YT) => {
-        if (cancelled || !ytHostRef.current || ytPlayerRef.current) return;
-        const container = ytHostRef.current;
-        const target = document.createElement('div');
-        target.className = 'w-full h-full';
-        container.innerHTML = '';
-        container.appendChild(target);
-
-        const initialVideoId = pendingVideoIdRef.current || activeVocalTrack.youtubeId;
-        ytPlayerRef.current = new YT.Player(target, {
-          width: '100%',
-          height: '100%',
-          videoId: initialVideoId,
-          playerVars: {
-            autoplay: 1,
-            rel: 0,
-            modestbranding: 1,
-            playsinline: 1,
-            origin: window.location.origin,
-          },
-          events: {
-            onReady: () => {
-              ytReadyRef.current = true;
-              const player = ytPlayerRef.current;
-              if (!player) return;
-              if (pendingVideoIdRef.current) {
-                player.loadVideoById(pendingVideoIdRef.current);
-                pendingVideoIdRef.current = null;
-              } else {
-                player.playVideo();
-              }
-            },
-            onStateChange: (event) => {
-              // 1 = PLAYING, 2 = PAUSED, 0 = ENDED
-              if (event.data === 1) {
-                setEmbedBlockedCode(null);
-                setIsVocalPlaying(true);
-              } else if (event.data === 2) {
-                setIsVocalPlaying(false);
-              } else if (event.data === 0) {
-                handleStepVocalTrack('next');
-              }
-            },
-            onError: (event) => {
-              setIsVocalPlaying(false);
-              setEmbedBlockedCode(event.data || 150);
-            },
-          },
-        });
-      })
-      .catch(() => {
-        setEmbedBlockedCode(150);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeVocalTrack, handleStepVocalTrack]);
-
-  // Cleanup YouTube player ONLY on component unmount
+  // Subscribe to luxuryMusicEngine and enable auto-play automatically on mount
   useEffect(() => {
-    return () => {
-      if (ytPlayerRef.current) {
-        try {
-          ytPlayerRef.current.destroy();
-        } catch {
-          // ignore
-        }
-        ytPlayerRef.current = null;
-        ytReadyRef.current = false;
+    const unsubscribe = luxuryMusicEngine.subscribe((snap) => {
+      if (snap.track?.id !== lastTrackIdRef.current) {
+        lastTrackIdRef.current = snap.track?.id ?? null;
+        setElapsedSec(0);
       }
+      setActiveTrack(snap.track);
+      setIsPlaying(snap.playing);
+      setWaitingForGesture(snap.waitingForGesture);
+      setIsMuted(snap.muted);
+      setVolume(Math.round(snap.volume * 100));
+    });
+
+    luxuryMusicEngine.enableAutoPlay(() => {
+      stepTrackRef.current('next');
+    });
+
+    return () => {
+      unsubscribe();
+      luxuryMusicEngine.stop();
     };
   }, []);
+
+  // Track playback elapsed timer while luxury engine is playing audibly
+  useEffect(() => {
+    if (!isPlaying || waitingForGesture || !activeTrack) return;
+    const id = window.setInterval(() => {
+      setElapsedSec((prev) => Math.min(activeTrack.durationSec, prev + 1));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [isPlaying, waitingForGesture, activeTrack]);
 
   // Revoke local object URL cleanly when changed or unmounted
   useEffect(() => {
@@ -334,19 +218,32 @@ export function MusicJukeboxModal({
     };
   }, [localAudioUrl]);
 
-  const handleToggleVocalPlayPause = () => {
-    if (!activeVocalTrack) {
-      handleSelectVocalTrack(filteredVocalTracks[0] ?? VOCAL_PLAYLIST[0]);
+  // Close drawer with Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  const handleTogglePlayPause = () => {
+    if (!activeTrack) {
+      handleSelectTrack(filteredTracks[0] ?? LUXURY_PLAYLIST[0]);
       return;
     }
-    if (!ytPlayerRef.current || !ytReadyRef.current) return;
     playToggleSound();
-    if (isVocalPlaying) {
-      ytPlayerRef.current.pauseVideo();
-      setIsVocalPlaying(false);
+    if (waitingForGesture) {
+      luxuryMusicEngine.unlockFromGesture();
+      return;
+    }
+    if (isPlaying) {
+      luxuryMusicEngine.pause();
     } else {
-      ytPlayerRef.current.playVideo();
-      setIsVocalPlaying(true);
+      luxuryMusicEngine.resume();
     }
   };
 
@@ -354,30 +251,30 @@ export function MusicJukeboxModal({
     playToggleSound();
     const next = !isMuted;
     setIsMuted(next);
-    if (ytPlayerRef.current && ytReadyRef.current) {
-      if (next) {
-        ytPlayerRef.current.mute();
-      } else {
-        ytPlayerRef.current.unMute();
-      }
-    }
+    luxuryMusicEngine.setMuted(next);
     if (localAudioRef.current) {
       localAudioRef.current.muted = next;
     }
   };
 
-  const handleStopAndDismissVocal = () => {
-    playCancelSound();
-    if (ytPlayerRef.current && ytReadyRef.current) {
-      try {
-        ytPlayerRef.current.stopVideo();
-      } catch {
-        // ignore
-      }
+  const handleVolumeChange = (nextVol: number) => {
+    setVolume(nextVol);
+    if (isMuted && nextVol > 0) {
+      setIsMuted(false);
+      luxuryMusicEngine.setMuted(false);
     }
-    setActiveVocalTrack(null);
-    setIsVocalPlaying(false);
-    setEmbedBlockedCode(null);
+    luxuryMusicEngine.setVolume(nextVol / 100);
+    if (localAudioRef.current) {
+      localAudioRef.current.volume = nextVol / 100;
+    }
+  };
+
+  const handleStopAndDismiss = () => {
+    playCancelSound();
+    luxuryMusicEngine.stop();
+    setActiveTrack(null);
+    setIsPlaying(false);
+    setElapsedSec(0);
   };
 
   const handleUploadLocalAudio = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -387,45 +284,42 @@ export function MusicJukeboxModal({
       URL.revokeObjectURL(localAudioUrl);
     }
     const url = URL.createObjectURL(file);
-    if (ytPlayerRef.current && ytReadyRef.current) {
-      try {
-        ytPlayerRef.current.pauseVideo();
-      } catch {
-        // ignore
-      }
-    }
-    setActiveVocalTrack(null);
-    setIsVocalPlaying(false);
+    luxuryMusicEngine.stop();
+    setActiveTrack(null);
+    setIsPlaying(false);
+    setElapsedSec(0);
     setLocalAudioUrl(url);
     setLocalAudioName(file.name.replace(/\.[^.]+$/, ''));
     setIsLocalAudioPlaying(true);
     window.setTimeout(() => {
       if (localAudioRef.current) {
         localAudioRef.current.muted = isMuted;
+        localAudioRef.current.volume = volume / 100;
         void localAudioRef.current.play().catch(() => {});
       }
     }, 50);
   };
 
-  const showFloatingBar = !isOpen && Boolean(activeVocalTrack || localAudioUrl);
+  const showFloatingBar = !isOpen && !waitingForGesture && Boolean(activeTrack || localAudioUrl);
+  const progressPct = activeTrack
+    ? Math.min(100, (elapsedSec / Math.max(1, activeTrack.durationSec)) * 100)
+    : 0;
 
   return (
     <>
-      {/* Hidden audio element for user-uploaded MP3/M4A files */}
+      {/* Hidden audio element for optional user-uploaded MP3/M4A files */}
       {localAudioUrl && (
         <audio
           ref={localAudioRef}
           src={localAudioUrl}
-          onPlay={() => {
-            setIsLocalAudioPlaying(true);
-          }}
+          onPlay={() => setIsLocalAudioPlaying(true)}
           onPause={() => setIsLocalAudioPlaying(false)}
           onEnded={() => setIsLocalAudioPlaying(false)}
           className="hidden"
         />
       )}
 
-      {/* Persistent Single-Mount Wrapper (Keeps YT.Player alive while browsing the site!) */}
+      {/* Modal / Minimized Mini-Bar Wrapper */}
       <div
         className={
           isOpen
@@ -446,7 +340,7 @@ export function MusicJukeboxModal({
         <div
           role={isOpen ? 'dialog' : undefined}
           aria-modal={isOpen ? 'true' : undefined}
-          aria-label="คลังเพลงประจำโครงการ"
+          aria-label="คลังเพลงบรรเลงลักชัวรีประจำโครงการ"
           onClick={(e) => e.stopPropagation()}
           className={
             isOpen
@@ -463,10 +357,10 @@ export function MusicJukeboxModal({
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-base sm:text-lg font-bold font-display text-white truncate">
-                    คลังเพลงบ้านของหัวใจ & เพลงใหม่ LISA
+                    Luxury Lounge &amp; Botanical Instrumental
                   </h2>
                   <p className="text-xs text-zinc-400 truncate">
-                    เพลงมีคนร้องทั้งหมด {VOCAL_PLAYLIST.length} เพลง (บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · LISA)
+                    เพลงบรรเลงสุดหรู {LUXURY_PLAYLIST.length} บทเพลง (Grand Piano · Harp · Hotel Lounge Jazz · Velvet Strings)
                   </p>
                 </div>
               </div>
@@ -502,70 +396,69 @@ export function MusicJukeboxModal({
                   : 'flex items-center gap-2.5 min-w-0 flex-1'
               }
             >
-              {/* Persistent YouTube Embed Stage */}
-              <div
-                className={
-                  isOpen
-                    ? 'relative w-full aspect-video rounded-xl overflow-hidden bg-[#0E1216] border border-white/10 shrink-0'
-                    : activeVocalTrack
-                    ? 'relative w-16 h-10 rounded-lg overflow-hidden bg-black border border-white/15 shrink-0'
-                    : 'hidden'
-                }
-              >
-                <div ref={ytHostRef} className="w-full h-full" />
+              {/* Luxury Visual Soundstage */}
+              {isOpen ? (
+                <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-[#1F2731] via-[#13181F] to-[#0D1015] border border-[#C59B48]/25 p-5 flex flex-col items-center justify-center text-center shrink-0">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_25%,rgba(197,155,72,0.16),transparent_65%)] pointer-events-none" />
 
-                {!activeVocalTrack && isOpen && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-[#1C232C] to-[#101419]">
-                    <Disc3 className="w-9 h-9 text-[#E5C57B] mb-2" />
-                    <p className="text-sm font-semibold text-white">
-                      {localAudioName
-                        ? `กำลังเล่นไฟล์: ${localAudioName}`
-                        : 'เลือกเพลงที่มีคนร้องจากรายการด้านขวา'}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-400">
-                      กดปุ่มเล่นที่เพลง "บ้านของหัวใจ" เพลงเกี่ยวกับบ้าน หรือเพลงใหม่ของ LISA ได้ทันที
-                    </p>
+                  <div
+                    className={`relative w-16 h-16 rounded-full border flex items-center justify-center mb-3 transition-transform duration-700 ${
+                      isPlaying || isLocalAudioPlaying
+                        ? 'border-[#E5C57B]/70 bg-[#C59B48]/15 scale-105'
+                        : 'border-white/15 bg-white/5'
+                    }`}
+                  >
+                    <Disc3
+                      className={`w-8 h-8 text-[#E5C57B] ${
+                        isPlaying || isLocalAudioPlaying ? 'animate-spin' : ''
+                      }`}
+                      style={{ animationDuration: '8s' }}
+                    />
                   </div>
-                )}
 
-                {embedBlockedCode !== null && activeVocalTrack && isOpen && (
-                  <div className="absolute inset-0 bg-[#101419]/92 p-4 flex flex-col items-center justify-center text-center gap-2.5">
-                    <p className="text-xs font-semibold text-[#E5C57B]">
-                      ค่ายเพลงจำกัดการเล่นวิดีโอนี้แบบฝังบนเว็บไซต์อื่น
-                    </p>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed">
-                      คุณสามารถกดฟังเพลง "{activeVocalTrack.title}" เต็มเพลงบน YouTube หรือข้ามไปเพลงถัดไปได้ทันที
-                    </p>
-                    <div className="flex flex-wrap items-center justify-center gap-2">
-                      <a
-                        href={`https://www.youtube.com/watch?v=${activeVocalTrack.youtubeId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl transition-colors"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        ฟังบน YouTube
-                      </a>
-                      <button
-                        type="button"
-                        data-sound="custom"
-                        onClick={() => handleStepVocalTrack('next')}
-                        className="min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer transition-colors"
-                      >
-                        <SkipForward className="w-3.5 h-3.5" />
-                        เพลงถัดไป
-                      </button>
-                    </div>
+                  {/* Subtle Equalizer Bars */}
+                  <div className="flex items-end justify-center gap-1.5 h-6 mb-2" aria-hidden="true">
+                    {[14, 22, 18, 24, 15, 20, 12].map((h, i) => (
+                      <span
+                        key={i}
+                        className={`w-1 rounded-full bg-gradient-to-t from-[#C59B48] to-[#F3DC9E] transition-all duration-300 ${
+                          isPlaying || isLocalAudioPlaying ? 'animate-pulse' : 'opacity-35'
+                        }`}
+                        style={{
+                          height: isPlaying || isLocalAudioPlaying ? `${h}px` : '6px',
+                          animationDelay: `${i * 110}ms`,
+                        }}
+                      />
+                    ))}
                   </div>
-                )}
-              </div>
+
+                  <p className="relative text-xs font-medium text-[#E5C57B] tracking-wide uppercase">
+                    {activeTrack
+                      ? isPlaying
+                        ? 'Now Playing · Luxury Acoustic'
+                        : 'Paused'
+                      : localAudioName
+                      ? 'Local Audio File'
+                      : 'CENTRO Soundscape'}
+                  </p>
+                </div>
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-[#C59B48]/15 border border-[#C59B48]/35 flex items-center justify-center shrink-0">
+                  <Disc3
+                    className={`w-4 h-4 text-[#E5C57B] ${
+                      isPlaying || isLocalAudioPlaying ? 'animate-spin' : ''
+                    }`}
+                    style={{ animationDuration: '6s' }}
+                  />
+                </div>
+              )}
 
               {/* Active Track Details */}
-              <div className={isOpen ? 'space-y-1 min-w-0' : 'min-w-0 flex-1'}>
-                {activeVocalTrack ? (
+              <div className={isOpen ? 'space-y-1.5 min-w-0' : 'min-w-0 flex-1'}>
+                {activeTrack ? (
                   <>
                     <div className="text-xs font-semibold text-[#E5C57B] truncate">
-                      {activeVocalTrack.artist}
+                      {activeTrack.subtitle}
                     </div>
                     <div
                       className={
@@ -574,11 +467,11 @@ export function MusicJukeboxModal({
                           : 'text-xs font-semibold text-white truncate'
                       }
                     >
-                      {activeVocalTrack.title}
+                      {activeTrack.title}
                     </div>
                     {isOpen && (
-                      <div className="text-xs text-zinc-400">
-                        {activeVocalTrack.albumOrOrigin} · {activeVocalTrack.moodNote}
+                      <div className="text-xs text-zinc-400 leading-relaxed">
+                        {activeTrack.moodNote}
                       </div>
                     )}
                   </>
@@ -590,19 +483,36 @@ export function MusicJukeboxModal({
                 ) : (
                   isOpen && (
                     <>
-                      <div className="text-xs font-semibold text-[#E5C57B]">
-                        คลังเพลงมีคนร้อง ({VOCAL_PLAYLIST.length} เพลง)
+                      <div className="text-xs font-semibold text-[#E5C57B] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        คลังเพลงบรรเลงลักชัวรี ({LUXURY_PLAYLIST.length} เพลง)
                       </div>
-                      <div className="text-sm font-bold text-white truncate">
-                        พร้อมเล่นทันที
+                      <div className="text-sm font-bold text-white">
+                        พร้อมบรรเลงทันที ไม่มีสะดุด
                       </div>
                       <div className="text-xs text-zinc-400">
-                        บ้านของหัวใจ · เพลงเกี่ยวกับบ้าน · LISA
+                        เลือกบทเพลงบรรเลงเปียโน ฮาร์ป แจ๊สโรงแรม 5 ดาว หรือเครื่องสายจากรายการด้านขวา
                       </div>
                     </>
                   )
                 )}
               </div>
+
+              {/* Progress Bar when open & track selected */}
+              {isOpen && activeTrack && (
+                <div className="space-y-1.5">
+                  <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#C59B48] to-[#F0D48F] rounded-full transition-all duration-500"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] font-mono-tabular text-zinc-400">
+                    <span>{formatSeconds(elapsedSec)}</span>
+                    <span>{formatSeconds(activeTrack.durationSec)}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Controls */}
               {isOpen ? (
@@ -629,7 +539,7 @@ export function MusicJukeboxModal({
                       <button
                         type="button"
                         data-sound="custom"
-                        onClick={() => handleStepVocalTrack('prev')}
+                        onClick={() => handleStepTrack('prev')}
                         aria-label="เพลงก่อนหน้า"
                         className="w-10 h-10 inline-flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer transition-colors"
                       >
@@ -639,11 +549,11 @@ export function MusicJukeboxModal({
                       <button
                         type="button"
                         data-sound="custom"
-                        onClick={handleToggleVocalPlayPause}
-                        aria-label={isVocalPlaying ? 'หยุดชั่วคราว' : 'เล่นเพลง'}
+                        onClick={handleTogglePlayPause}
+                        aria-label={isPlaying ? 'หยุดชั่วคราว' : 'เล่นเพลง'}
                         className="w-12 h-12 inline-flex items-center justify-center rounded-xl bg-[#E5C57B] hover:bg-[#D4B368] text-[#14191F] cursor-pointer transition-colors shadow-sm"
                       >
-                        {isVocalPlaying ? (
+                        {isPlaying ? (
                           <Pause className="w-5 h-5" />
                         ) : (
                           <Play className="w-5 h-5 ml-0.5" />
@@ -653,7 +563,7 @@ export function MusicJukeboxModal({
                       <button
                         type="button"
                         data-sound="custom"
-                        onClick={() => handleStepVocalTrack('next')}
+                        onClick={() => handleStepTrack('next')}
                         aria-label="เพลงถัดไป"
                         className="w-10 h-10 inline-flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer transition-colors"
                       >
@@ -676,17 +586,22 @@ export function MusicJukeboxModal({
                     </button>
                   </div>
 
-                  {activeVocalTrack && (
-                    <a
-                      href={`https://www.youtube.com/watch?v=${activeVocalTrack.youtubeId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full min-h-[40px] inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 bg-white/8 hover:bg-white/15 border border-white/15 rounded-xl transition-colors"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 text-[#E5C57B]" />
-                      เปิดฟังเพลงนี้บน YouTube Official
-                    </a>
-                  )}
+                  {/* Volume Slider */}
+                  <div className="flex items-center gap-2.5 px-1">
+                    <span className="text-[11px] text-zinc-400 shrink-0">ระดับเสียง</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={isMuted ? 0 : volume}
+                      onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                      aria-label="ระดับเสียงเพลงบรรเลง"
+                      className="w-full accent-[#E5C57B] cursor-pointer h-1.5"
+                    />
+                    <span className="text-[11px] font-mono-tabular text-zinc-300 w-8 text-right">
+                      {isMuted ? 0 : volume}%
+                    </span>
+                  </div>
 
                   {/* Quick local audio upload */}
                   <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-2">
@@ -711,16 +626,16 @@ export function MusicJukeboxModal({
               ) : (
                 /* Compact Floating Mini-Bar Controls */
                 <div className="flex items-center gap-1 shrink-0">
-                  {activeVocalTrack && (
+                  {activeTrack && (
                     <>
                       <button
                         type="button"
                         data-sound="custom"
-                        onClick={handleToggleVocalPlayPause}
-                        aria-label={isVocalPlaying ? 'หยุด' : 'เล่น'}
+                        onClick={handleTogglePlayPause}
+                        aria-label={isPlaying ? 'หยุด' : 'เล่น'}
                         className="w-9 h-9 inline-flex items-center justify-center rounded-lg bg-[#E5C57B] text-[#14191F] cursor-pointer"
                       >
-                        {isVocalPlaying ? (
+                        {isPlaying ? (
                           <Pause className="w-4 h-4" />
                         ) : (
                           <Play className="w-4 h-4 ml-0.5" />
@@ -729,7 +644,7 @@ export function MusicJukeboxModal({
                       <button
                         type="button"
                         data-sound="custom"
-                        onClick={() => handleStepVocalTrack('next')}
+                        onClick={() => handleStepTrack('next')}
                         aria-label="เพลงถัดไป"
                         className="w-9 h-9 inline-flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer"
                       >
@@ -738,7 +653,7 @@ export function MusicJukeboxModal({
                     </>
                   )}
 
-                  {localAudioUrl && !activeVocalTrack && (
+                  {localAudioUrl && !activeTrack && (
                     <button
                       type="button"
                       data-sound="custom"
@@ -777,7 +692,7 @@ export function MusicJukeboxModal({
                     type="button"
                     data-sound="custom"
                     onClick={() => {
-                      handleStopAndDismissVocal();
+                      handleStopAndDismiss();
                       stopLocalAudio();
                       setLocalAudioUrl(null);
                       setLocalAudioName(null);
@@ -791,14 +706,14 @@ export function MusicJukeboxModal({
               )}
             </div>
 
-            {/* RIGHT PLAYLIST DIRECTORY (only when open) — ONLY Vocal Songs */}
+            {/* RIGHT PLAYLIST DIRECTORY (only when open) — 20 Luxury Instrumentals */}
             {isOpen && (
               <div className="flex-1 min-h-0 flex flex-col bg-[#FFFEFC] overflow-hidden">
                 {/* Category Filter Tabs + Search */}
                 <div className="p-4 sm:p-5 border-b border-[#EAE4D7] space-y-3 shrink-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {VOCAL_CATEGORY_TABS.map((cat) => {
-                      const isActive = vocalCategory === cat.id;
+                    {LUXURY_CATEGORY_TABS.map((cat) => {
+                      const isActive = category === cat.id;
                       return (
                         <button
                           key={cat.id}
@@ -806,7 +721,7 @@ export function MusicJukeboxModal({
                           data-sound="custom"
                           onClick={() => {
                             playClickSound();
-                            setVocalCategory(cat.id);
+                            setCategory(cat.id);
                           }}
                           className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
                             isActive
@@ -826,7 +741,7 @@ export function MusicJukeboxModal({
                       type="text"
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
-                      placeholder="ค้นหาชื่อเพลง ศิลปิน หรืออัลบั้ม (เช่น บ้านของหัวใจ, LISA, Alter Ego, Press Play)..."
+                      placeholder="ค้นหาชื่อเพลงบรรเลง แนวเครื่องดนตรี หรือบรรยากาศ (เช่น Piano, Harp, Jazz, Strings)..."
                       className="w-full h-10 pl-10 pr-9 text-xs sm:text-sm bg-[#FAF8F4] border border-[#E2DDD0] rounded-xl text-[#14191F] placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C59B48]/50 focus:border-[#C59B48]"
                     />
                     {searchText && (
@@ -842,9 +757,9 @@ export function MusicJukeboxModal({
                   </div>
                 </div>
 
-                {/* Scrollable Vocal Track List */}
+                {/* Scrollable Luxury Instrumental Track List */}
                 <div className="flex-1 overflow-y-auto divide-y divide-[#EFEAE0]">
-                  {filteredVocalTracks.length === 0 ? (
+                  {filteredTracks.length === 0 ? (
                     <div className="p-10 text-center space-y-2">
                       <p className="text-sm font-medium text-zinc-600">
                         ไม่พบเพลงที่ตรงกับ "{searchText}"
@@ -853,16 +768,16 @@ export function MusicJukeboxModal({
                         type="button"
                         onClick={() => {
                           setSearchText('');
-                          setVocalCategory('all');
+                          setCategory('all');
                         }}
                         className="px-4 py-2 text-xs font-semibold text-[#14191F] bg-[#F3EFE6] hover:bg-[#EAE4D7] rounded-xl cursor-pointer"
                       >
-                        แสดงเพลงทั้งหมด ({VOCAL_PLAYLIST.length} เพลง)
+                        แสดงเพลงทั้งหมด ({LUXURY_PLAYLIST.length} เพลง)
                       </button>
                     </div>
                   ) : (
-                    filteredVocalTracks.map((track, idx) => {
-                      const isSelected = activeVocalTrack?.id === track.id;
+                    filteredTracks.map((track) => {
+                      const isSelected = activeTrack?.id === track.id;
                       return (
                         <div
                           key={track.id}
@@ -873,7 +788,7 @@ export function MusicJukeboxModal({
                           <button
                             type="button"
                             data-sound="custom"
-                            onClick={() => handleSelectVocalTrack(track)}
+                            onClick={() => handleSelectTrack(track)}
                             className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer"
                           >
                             <span
@@ -881,7 +796,7 @@ export function MusicJukeboxModal({
                                 isSelected ? 'font-bold text-[#9B7A36]' : 'text-zinc-400'
                               }`}
                             >
-                              {String(idx + 1).padStart(2, '0')}
+                              {String(track.number).padStart(2, '0')}
                             </span>
 
                             <div
@@ -891,7 +806,7 @@ export function MusicJukeboxModal({
                                   : 'bg-[#F3EFE6] text-[#14191F]'
                               }`}
                             >
-                              {isSelected && isVocalPlaying ? (
+                              {isSelected && isPlaying ? (
                                 <Pause className="w-4 h-4" />
                               ) : (
                                 <Play className="w-4 h-4 ml-0.5" />
@@ -907,25 +822,18 @@ export function MusicJukeboxModal({
                                 {track.title}
                               </div>
                               <div className="text-xs text-zinc-500 truncate">
-                                <span>{track.artist}</span>
+                                <span>{track.subtitle}</span>
                                 <span aria-hidden="true" className="mx-1.5">
                                   ·
                                 </span>
-                                <span>{track.albumOrOrigin}</span>
+                                <span>{track.moodNote}</span>
                               </div>
                             </div>
                           </button>
 
-                          <a
-                            href={`https://www.youtube.com/watch?v=${track.youtubeId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`ฟัง ${track.title} บน YouTube`}
-                            aria-label={`ฟัง ${track.title} บน YouTube`}
-                            className="w-9 h-9 inline-flex items-center justify-center rounded-xl text-zinc-400 hover:text-[#14191F] hover:bg-[#EFEAE0] shrink-0 transition-colors"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
+                          <span className="text-xs font-mono-tabular text-zinc-400 shrink-0">
+                            {formatSeconds(track.durationSec)}
+                          </span>
                         </div>
                       );
                     })

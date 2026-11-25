@@ -21,6 +21,7 @@ interface CompareViewProps {
   onClearBookmarks: () => void;
   onLocatePlot: (id: string) => void;
   onGoToPlan: () => void;
+  showSellingPrices?: boolean;
 }
 
 export function CompareView({
@@ -29,6 +30,7 @@ export function CompareView({
   onClearBookmarks,
   onLocatePlot,
   onGoToPlan,
+  showSellingPrices = false,
 }: CompareViewProps) {
   const [showAfterYear3, setShowAfterYear3] = useState(false);
   if (bookmarkedPlots.length === 0) {
@@ -63,27 +65,31 @@ export function CompareView({
             เปรียบเทียบแปลงที่สนใจ ({bookmarkedPlots.length}/4)
           </h2>
           <p className="mt-0.5 text-sm text-zinc-600">
-            เทียบสเปคบ้าน ขนาดที่ดิน บ้านเลขที่ ค่าส่วนกลาง และประมาณการค่างวด 3 ปีแรก (1.59%, 30 ปี)
+            {showSellingPrices
+              ? 'เทียบสเปคบ้าน ขนาดที่ดิน บ้านเลขที่ ค่าส่วนกลาง และประมาณการค่างวด 3 ปีแรก (1.59%, 30 ปี)'
+              : 'เทียบแบบบ้าน บ้านเลขที่ ขนาดที่ดิน พื้นที่ใช้สอย ฟังก์ชันห้อง และทิศหน้าบ้าน'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            data-sound="custom"
-            aria-expanded={showAfterYear3}
-            onClick={() => {
-              playToggleSound();
-              setShowAfterYear3((prev) => !prev);
-            }}
-            className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-zinc-700 hover:text-zinc-900 border border-[#DDD5C7] bg-white hover:bg-[#F3EFE8] rounded-xl cursor-pointer"
-          >
-            <span>{showAfterYear3 ? 'ซ่อนค่างวดหลังปีที่ 3' : 'ดูค่างวดหลังปีที่ 3'}</span>
-            {showAfterYear3 ? (
-              <ChevronUp className="w-3.5 h-3.5 text-zinc-500" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
-            )}
-          </button>
+          {showSellingPrices && (
+            <button
+              type="button"
+              data-sound="custom"
+              aria-expanded={showAfterYear3}
+              onClick={() => {
+                playToggleSound();
+                setShowAfterYear3((prev) => !prev);
+              }}
+              className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-zinc-700 hover:text-zinc-900 border border-[#DDD5C7] bg-white hover:bg-[#F3EFE8] rounded-xl cursor-pointer"
+            >
+              <span>{showAfterYear3 ? 'ซ่อนค่างวดหลังปีที่ 3' : 'ดูค่างวดหลังปีที่ 3'}</span>
+              {showAfterYear3 ? (
+                <ChevronUp className="w-3.5 h-3.5 text-zinc-500" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+              )}
+            </button>
+          )}
           <button
             type="button"
             data-sound="custom"
@@ -146,15 +152,17 @@ export function CompareView({
                 );
               })}
             </tr>
-            <tr>
-              <td className="py-3 px-5 text-xs text-zinc-500">ราคาบ้านและที่ดิน</td>
-              {bookmarkedPlots.map((plot) => (
-                <td key={plot.id} className="py-3 px-5 font-mono-tabular">
-                  <div className="font-bold text-[#164A37]">{formatTHB(plot.price)} บ.</div>
-                  <div className="text-xs text-zinc-500">{formatMillion(plot.price)} ล้านบาท</div>
-                </td>
-              ))}
-            </tr>
+            {showSellingPrices && (
+              <tr>
+                <td className="py-3 px-5 text-xs text-zinc-500">ราคาบ้านและที่ดิน</td>
+                {bookmarkedPlots.map((plot) => (
+                  <td key={plot.id} className="py-3 px-5 font-mono-tabular">
+                    <div className="font-bold text-[#164A37]">{formatTHB(plot.price)} บ.</div>
+                    <div className="text-xs text-zinc-500">{formatMillion(plot.price)} ล้านบาท</div>
+                  </td>
+                ))}
+              </tr>
+            )}
             <tr>
               <td className="py-3 px-5 text-xs text-zinc-500">ขนาดที่ดิน</td>
               {bookmarkedPlots.map((plot) => (
@@ -163,14 +171,16 @@ export function CompareView({
                 </td>
               ))}
             </tr>
-            <tr>
-              <td className="py-3 px-5 text-xs text-zinc-500">ราคาเฉลี่ยต่อ ตร.วา</td>
-              {bookmarkedPlots.map((plot) => (
-                <td key={plot.id} className="py-3 px-5 font-mono-tabular text-zinc-700">
-                  {formatPricePerWah(plot.price, plot.landSqWah)} บ./ตร.วา
-                </td>
-              ))}
-            </tr>
+            {showSellingPrices && (
+              <tr>
+                <td className="py-3 px-5 text-xs text-zinc-500">ราคาเฉลี่ยต่อ ตร.วา</td>
+                {bookmarkedPlots.map((plot) => (
+                  <td key={plot.id} className="py-3 px-5 font-mono-tabular text-zinc-700">
+                    {formatPricePerWah(plot.price, plot.landSqWah)} บ./ตร.วา
+                  </td>
+                ))}
+              </tr>
+            )}
             <tr>
               <td className="py-3 px-5 text-xs text-zinc-500">พื้นที่ใช้สอย</td>
               {bookmarkedPlots.map((plot) => (
@@ -211,45 +221,49 @@ export function CompareView({
                 );
               })}
             </tr>
-            <tr>
-              <td className="py-3 px-5 text-xs text-zinc-500">ค่างวด 3 ปีแรก (1.59%)</td>
-              {bookmarkedPlots.map((plot) => {
-                const calc = calculateTwoPhaseMortgage(plot.price, 0, 1.59, 5.25, 30);
-                return (
-                  <td key={plot.id} className="py-3 px-5 font-mono-tabular font-semibold text-[#164A37]">
-                    ~{formatTHB(calc.first3YearsMonthly)} บ./ด.
-                  </td>
-                );
-              })}
-            </tr>
-            <tr>
-              <td className="py-3 px-5 text-xs text-zinc-500">เงินเดือนที่ควรกู้ได้ (DSR 40–80%)</td>
-              {bookmarkedPlots.map((plot) => {
-                const salary = calculateRequiredSalary(plot.price, 0, 5.25, 30, 0, 60);
-                return (
-                  <td key={plot.id} className="py-3 px-5 font-mono-tabular">
-                    <div className="font-semibold text-[#162742]">
-                      ~{formatTHB(salary.maxSalary80)} – {formatTHB(salary.comfortableSalary40)} บ./ด.
-                    </div>
-                    <div className="text-[11px] text-zinc-500">
-                      80% ~{formatTHB(salary.maxSalary80)} · 60% ~{formatTHB(salary.maxStretchSalary60)} · 40% ~{formatTHB(salary.comfortableSalary40)}
-                    </div>
-                  </td>
-                );
-              })}
-            </tr>
-            {showAfterYear3 && (
-              <tr>
-                <td className="py-3 px-5 text-xs text-zinc-500">หลังปีที่ 3 (ลอยตัว ~5.25%)</td>
-                {bookmarkedPlots.map((plot) => {
-                  const calc = calculateTwoPhaseMortgage(plot.price, 0, 1.59, 5.25, 30);
-                  return (
-                    <td key={plot.id} className="py-3 px-5 font-mono-tabular text-zinc-700">
-                      ~{formatTHB(calc.afterYear3Monthly)} บ./ด.
-                    </td>
-                  );
-                })}
-              </tr>
+            {showSellingPrices && (
+              <>
+                <tr>
+                  <td className="py-3 px-5 text-xs text-zinc-500">ค่างวด 3 ปีแรก (1.59%)</td>
+                  {bookmarkedPlots.map((plot) => {
+                    const calc = calculateTwoPhaseMortgage(plot.price, 0, 1.59, 5.25, 30);
+                    return (
+                      <td key={plot.id} className="py-3 px-5 font-mono-tabular font-semibold text-[#164A37]">
+                        ~{formatTHB(calc.first3YearsMonthly)} บ./ด.
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr>
+                  <td className="py-3 px-5 text-xs text-zinc-500">เงินเดือนที่ควรกู้ได้ (DSR 40–80%)</td>
+                  {bookmarkedPlots.map((plot) => {
+                    const salary = calculateRequiredSalary(plot.price, 0, 5.25, 30, 0, 60);
+                    return (
+                      <td key={plot.id} className="py-3 px-5 font-mono-tabular">
+                        <div className="font-semibold text-[#162742]">
+                          ~{formatTHB(salary.maxSalary80)} – {formatTHB(salary.comfortableSalary40)} บ./ด.
+                        </div>
+                        <div className="text-[11px] text-zinc-500">
+                          80% ~{formatTHB(salary.maxSalary80)} · 60% ~{formatTHB(salary.maxStretchSalary60)} · 40% ~{formatTHB(salary.comfortableSalary40)}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+                {showAfterYear3 && (
+                  <tr>
+                    <td className="py-3 px-5 text-xs text-zinc-500">หลังปีที่ 3 (ลอยตัว ~5.25%)</td>
+                    {bookmarkedPlots.map((plot) => {
+                      const calc = calculateTwoPhaseMortgage(plot.price, 0, 1.59, 5.25, 30);
+                      return (
+                        <td key={plot.id} className="py-3 px-5 font-mono-tabular text-zinc-700">
+                          ~{formatTHB(calc.afterYear3Monthly)} บ./ด.
+                        </td>
+                      );
+                    })}
+                  </tr>
+                )}
+              </>
             )}
             <tr>
               <td className="py-3 px-5 text-xs text-zinc-500">สถานะ</td>
