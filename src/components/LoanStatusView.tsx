@@ -14,6 +14,7 @@ import {
   EyeOff,
   FileSpreadsheet,
   HardDrive,
+  Home,
   KeyRound,
   Landmark,
   Lock,
@@ -28,9 +29,8 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
-import { motion } from 'motion/react';
-import kavinPortraitImg from '../assets/images/kavin_luxury_theme_1795597066856.jpg';
-import { HOUSE_MODELS } from '../data/houseModels';
+import { CartoonKavinSVG } from './CartoonKavin';
+import { HOUSE_MODEL_ORDER, HOUSE_MODELS } from '../data/houseModels';
 import { getDatabaseStorageInfo, sanitizeLoanCase } from '../firebase';
 import {
   BankApplicationEntry,
@@ -595,29 +595,40 @@ export function LoanStatusView({
       >
         {/* Obsidian & Champagne Header — ZERO price, ZERO land size, ZERO map link */}
         <div className="px-6 py-5 bg-gradient-to-br from-[#14191F] via-[#1C232B] to-[#11151B] text-white flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="text-xs text-[#E5C57B] flex flex-wrap items-center gap-2">
-              <span className="font-mono-tabular font-semibold">แปลง {item.plotId}</span>
-              <span aria-hidden="true" className="text-white/30">·</span>
-              <span className="font-mono-tabular text-stone-300">
-                บ้านเลขที่ {item.houseNumber}
-              </span>
-              {item.modelName && (
-                <>
-                  <span aria-hidden="true" className="text-white/30">·</span>
-                  <span className="text-stone-300">แบบบ้าน {item.modelName}</span>
-                </>
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="hidden sm:block w-24 h-16 rounded-2xl overflow-hidden border border-[#C59B48]/40 bg-[#101419] shrink-0 shadow-sm">
+              <img
+                src="/assets/aistudio/image_fb8b8a7e.png"
+                alt={`แบบบ้าน ${item.modelName || 'CENTRO พระราม 2 - พุทธบูชา 2'}`}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover object-center"
+              />
+            </div>
+
+            <div className="min-w-0">
+              <div className="text-xs text-[#E5C57B] flex flex-wrap items-center gap-2">
+                <span className="font-mono-tabular font-semibold">แปลง {item.plotId}</span>
+                <span aria-hidden="true" className="text-white/30">·</span>
+                <span className="font-mono-tabular text-stone-300">
+                  บ้านเลขที่ {item.houseNumber}
+                </span>
+                {item.modelName && (
+                  <>
+                    <span aria-hidden="true" className="text-white/30">·</span>
+                    <span className="text-stone-300">แบบบ้าน {item.modelName}</span>
+                  </>
+                )}
+              </div>
+              <h3 className="mt-1.5 text-xl sm:text-2xl font-bold font-display text-white">
+                {item.maskedName}
+              </h3>
+              {item.maskedPhone && (
+                <p className="mt-1 text-xs text-stone-300 font-mono-tabular inline-flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-[#E5C57B]" />
+                  <span>{item.maskedPhone}</span>
+                </p>
               )}
             </div>
-            <h3 className="mt-1.5 text-xl sm:text-2xl font-bold font-display text-white">
-              {item.maskedName}
-            </h3>
-            {item.maskedPhone && (
-              <p className="mt-1 text-xs text-stone-300 font-mono-tabular inline-flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-[#E5C57B]" />
-                <span>{item.maskedPhone}</span>
-              </p>
-            )}
           </div>
 
           <div className="flex flex-col items-start sm:items-end gap-2">
@@ -770,105 +781,163 @@ export function LoanStatusView({
 
   return (
     <div className="space-y-6">
-      {/* Luxury Architectural Header Banner */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#14191F] via-[#1C232C] to-[#101419] text-white border border-[#2C3542] shadow-[0_16px_44px_rgba(20,25,31,0.16)] p-6 sm:p-8">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div>
-            <div className="text-xs font-medium text-[#E5C57B] flex flex-wrap items-center gap-2">
-              <span>Mortgage Concierge</span>
-              <span aria-hidden="true" className="text-white/30">·</span>
-              <span className="text-stone-300">CENTRO พระราม 2 - พุทธบูชา 2</span>
-            </div>
-            <h1 className="mt-1.5 text-2xl sm:text-3xl font-bold font-display text-white text-balance">
-              {effectiveSubMode === 'customer'
-                ? 'ตรวจสอบสถานะสินเชื่อธนาคารของคุณ'
-                : 'จัดการข้อมูลและสถานะสินเชื่อลูกค้า'}
-            </h1>
-            <p className="mt-1.5 text-xs sm:text-sm text-stone-300 max-w-2xl leading-relaxed">
-              {effectiveSubMode === 'customer'
-                ? 'ค้นหาจากชื่อ 3 ตัวแรก หรือเบอร์โทรศัพท์ แล้วกรอกรหัสผ่านด้วยเลขบัตรประชาชน 13 หลักเพื่อตรวจสอบความคืบหน้ารายธนาคาร'
-                : 'เพิ่มและอัปเดตข้อมูลลูกค้า แปลงบ้าน เบอร์โทรศัพท์ เลขบัตรประชาชน และสถานะธนาคารที่ยื่นกู้แบบเรียลไทม์'}
-            </p>
-          </div>
-
-          {effectiveSubMode === 'customer' && !isStaffMode && (
-            <div className="relative flex items-center justify-center lg:justify-end shrink-0">
-              <motion.div
-                animate={{ x: [-14, 14, -14] }}
-                transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-                className="flex items-center gap-3.5 px-4 py-2.5 rounded-2xl bg-white/8 border border-[#C59B48]/35 backdrop-blur-xs"
-              >
-                <div className="p-0.5 rounded-2xl bg-gradient-to-b from-[#F5DDA0] via-[#C59B48] to-[#7A5B1B] shadow-sm shrink-0">
-                  <div className="w-12 h-14 rounded-[14px] overflow-hidden bg-[#14191F]">
-                    <img
-                      src={kavinPortraitImg}
-                      alt="กวิน ที่ปรึกษาโครงการ"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover object-[50%_14%] brightness-[1.02] contrast-[1.03]"
-                    />
-                  </div>
+      {/* Luxury Architectural Header Banner with House Photo */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#14191F] via-[#1C232C] to-[#101419] text-white border border-[#2C3542] shadow-[0_16px_44px_rgba(20,25,31,0.16)]">
+        {effectiveSubMode === 'customer' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] items-stretch">
+            {/* Left Copy + Gavin Gliding Greeting */}
+            <div className="p-6 sm:p-8 flex flex-col justify-between gap-5 relative z-10">
+              <div>
+                <div className="text-xs font-medium text-[#E5C57B] flex flex-wrap items-center gap-2">
+                  <span>Mortgage Concierge</span>
+                  <span aria-hidden="true" className="text-white/30">·</span>
+                  <span className="text-stone-300">CENTRO พระราม 2 - พุทธบูชา 2</span>
                 </div>
-                <div className="min-w-0">
-                  <div className="text-xs sm:text-sm font-bold text-[#F7E3AC] font-display leading-snug">
-                    มาเช็คผลสินเชื่อกับกวินกันนะค้าบบ
-                  </div>
-                  <div className="text-[11px] text-zinc-300 truncate">
-                    Kavin · Private Mortgage Concierge
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
-
-          {isStaffMode && (
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-              <div className="inline-flex items-center p-1 rounded-xl bg-white/8 border border-white/15 gap-1">
-                <button
-                  type="button"
-                  data-sound="custom"
-                  onClick={() => {
-                    playToggleSound();
-                    setSubMode('customer');
-                  }}
-                  className={`min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                    effectiveSubMode === 'customer'
-                      ? 'bg-[#C59B48] text-[#14191F]'
-                      : 'text-stone-200 hover:bg-white/10'
-                  }`}
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  ทดสอบหน้าค้นหาลูกค้า
-                </button>
-                <button
-                  type="button"
-                  data-sound="custom"
-                  onClick={() => {
-                    playToggleSound();
-                    setSubMode('manage');
-                  }}
-                  className={`min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                    effectiveSubMode === 'manage'
-                      ? 'bg-[#C59B48] text-[#14191F]'
-                      : 'text-stone-200 hover:bg-white/10'
-                  }`}
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  จัดการข้อมูลลูกค้า ({loanCases.length})
-                </button>
+                <h1 className="mt-1.5 text-2xl sm:text-3xl font-bold font-display text-white text-balance">
+                  ตรวจสอบสถานะสินเชื่อธนาคารของคุณ
+                </h1>
+                <p className="mt-1.5 text-xs sm:text-sm text-stone-300 max-w-2xl leading-relaxed">
+                  ค้นหาจากชื่อ 3 ตัวแรก หรือเบอร์โทรศัพท์ แล้วกรอกรหัสผ่านด้วยเลขบัตรประชาชน 13 หลักเพื่อตรวจสอบความคืบหน้ารายธนาคาร
+                </p>
               </div>
 
-              <button
-                type="button"
-                data-sound="custom"
-                onClick={() => openNewForm()}
-                className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D5B263] rounded-xl transition-colors cursor-pointer whitespace-nowrap shadow-xs active:scale-[0.98]"
-              >
-                <Plus className="w-4 h-4" />
-                เพิ่มข้อมูลลูกค้าใหม่
-              </button>
+              {!isStaffMode ? (
+                <div className="relative flex items-center justify-start pt-1">
+                  <div className="inline-flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/8 border border-[#C59B48]/35 backdrop-blur-xs">
+                    <div className="w-12 h-14 flex items-center justify-center shrink-0">
+                      <CartoonKavinSVG isRunning className="w-12 h-14" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs sm:text-sm font-bold text-[#F7E3AC] font-display leading-snug">
+                        มาเช็คผลสินเชื่อกับกวินกันนะค้าบบ
+                      </div>
+                      <div className="text-[11px] text-zinc-300 truncate">
+                        Kavin · Private Mortgage Concierge
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <div className="inline-flex items-center p-1 rounded-xl bg-white/8 border border-white/15 gap-1">
+                    <button
+                      type="button"
+                      data-sound="custom"
+                      onClick={() => {
+                        playToggleSound();
+                        setSubMode('customer');
+                      }}
+                      className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap bg-[#C59B48] text-[#14191F]"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      ทดสอบหน้าค้นหาลูกค้า
+                    </button>
+                    <button
+                      type="button"
+                      data-sound="custom"
+                      onClick={() => {
+                        playToggleSound();
+                        setSubMode('manage');
+                      }}
+                      className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap text-stone-200 hover:bg-white/10"
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      จัดการข้อมูลลูกค้า ({loanCases.length})
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    data-sound="custom"
+                    onClick={() => openNewForm()}
+                    className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D5B263] rounded-xl transition-colors cursor-pointer whitespace-nowrap shadow-xs active:scale-[0.98]"
+                  >
+                    <Plus className="w-4 h-4" />
+                    เพิ่มข้อมูลลูกค้าใหม่
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* Right Real Architectural House Photo */}
+            <div className="relative min-h-[210px] sm:min-h-[250px] lg:min-h-full bg-[#101419] overflow-hidden">
+              <img
+                src="/assets/aistudio/image_fb8b8a7e.png"
+                alt="ภาพบ้านเดี่ยวโครงการ CENTRO พระราม 2 - พุทธบูชา 2"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover object-center"
+              />
+              <div
+                aria-hidden="true"
+                className="hidden lg:block absolute inset-0 bg-gradient-to-r from-[#14191F] via-[#14191F]/30 to-transparent pointer-events-none"
+              />
+              <div
+                aria-hidden="true"
+                className="lg:hidden absolute inset-0 bg-gradient-to-t from-[#14191F]/80 via-transparent to-transparent pointer-events-none"
+              />
+              <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 px-3 py-1.5 rounded-xl bg-[#101419]/80 backdrop-blur-md border border-[#C59B48]/35 text-[11px] text-[#F2D999] font-medium">
+                บ้านเดี่ยว Modern Luxury · 7 แบบบ้าน (164–289 ตร.ม.)
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+            <div>
+              <div className="text-xs font-medium text-[#E5C57B] flex flex-wrap items-center gap-2">
+                <span>Mortgage Concierge</span>
+                <span aria-hidden="true" className="text-white/30">·</span>
+                <span className="text-stone-300">CENTRO พระราม 2 - พุทธบูชา 2</span>
+              </div>
+              <h1 className="mt-1.5 text-2xl sm:text-3xl font-bold font-display text-white text-balance">
+                จัดการข้อมูลและสถานะสินเชื่อลูกค้า
+              </h1>
+              <p className="mt-1.5 text-xs sm:text-sm text-stone-300 max-w-2xl leading-relaxed">
+                เพิ่มและอัปเดตข้อมูลลูกค้า แปลงบ้าน เบอร์โทรศัพท์ เลขบัตรประชาชน และสถานะธนาคารที่ยื่นกู้แบบเรียลไทม์
+              </p>
+            </div>
+
+            {isStaffMode && (
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <div className="inline-flex items-center p-1 rounded-xl bg-white/8 border border-white/15 gap-1">
+                  <button
+                    type="button"
+                    data-sound="custom"
+                    onClick={() => {
+                      playToggleSound();
+                      setSubMode('customer');
+                    }}
+                    className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap text-stone-200 hover:bg-white/10"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    ทดสอบหน้าค้นหาลูกค้า
+                  </button>
+                  <button
+                    type="button"
+                    data-sound="custom"
+                    onClick={() => {
+                      playToggleSound();
+                      setSubMode('manage');
+                    }}
+                    className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap bg-[#C59B48] text-[#14191F]"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    จัดการข้อมูลลูกค้า ({loanCases.length})
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  data-sound="custom"
+                  onClick={() => openNewForm()}
+                  className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D5B263] rounded-xl transition-colors cursor-pointer whitespace-nowrap shadow-xs active:scale-[0.98]"
+                >
+                  <Plus className="w-4 h-4" />
+                  เพิ่มข้อมูลลูกค้าใหม่
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Mode 1: Customer Search-Only Portal (Masked 3 chars + xxxx & Phone + National ID Passcode) */}
@@ -1168,6 +1237,77 @@ export function LoanStatusView({
               )}
             </div>
           )}
+
+          {/* Customer Residence Showcase (House Photo + 7 House Models — Strictly Zero Selling Prices) */}
+          <section className="bg-[#FFFEFC] border border-[#E4DFD3] rounded-3xl overflow-hidden shadow-[0_8px_28px_rgba(20,25,31,0.05)] max-w-5xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] items-stretch">
+              <div className="relative min-h-[230px] sm:min-h-[280px] bg-[#14191F] overflow-hidden">
+                <img
+                  src="/assets/aistudio/image_fb8b8a7e.png"
+                  alt="แบบบ้านเดี่ยวโครงการ CENTRO พระราม 2 - พุทธบูชา 2"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover object-center"
+                />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-gradient-to-t from-[#101419]/80 via-transparent to-transparent"
+                />
+                <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-2 text-white">
+                  <div>
+                    <div className="text-[11px] font-medium text-[#E5C57B]">
+                      AP Thailand · Modern Luxury Residence
+                    </div>
+                    <div className="text-base sm:text-lg font-bold font-display">
+                      CENTRO พระราม 2 - พุทธบูชา 2
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 sm:p-6 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8A6820]">
+                    <Home className="w-3.5 h-3.5" />
+                    <span>แบบบ้านภายในโครงการ (7 สไตล์)</span>
+                  </div>
+                  <h3 className="mt-1 text-lg font-bold text-[#14191F] font-display">
+                    ภาพรวมแบบบ้านและพื้นที่ใช้สอย
+                  </h3>
+                  <p className="mt-1 text-xs text-zinc-600 leading-relaxed">
+                    บ้านเดี่ยว 2 ชั้น ดีไซน์โมเดิร์นหรูหรา ครบครันด้วยพื้นที่ใช้สอย 164 – 289 ตร.ม. รองรับ 3–4 ห้องนอน และที่จอดรถสูงสุด 3 คัน
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {HOUSE_MODEL_ORDER.map((modelId) => {
+                    const spec = HOUSE_MODELS[modelId];
+                    return (
+                      <div
+                        key={modelId}
+                        className="p-2.5 rounded-xl bg-[#F7F5F0] border border-[#E4DFD3] space-y-0.5"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="w-2.5 h-2.5 rounded-xs border border-black/15 shrink-0"
+                            style={{ backgroundColor: spec.colorHex }}
+                          />
+                          <span className="text-xs font-bold text-[#14191F] font-display truncate">
+                            {spec.name}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono-tabular text-zinc-700">
+                          {spec.usableAreaSqM} ตร.ม.
+                        </div>
+                        <div className="text-[10px] text-zinc-500 tabular-nums truncate">
+                          {spec.bedrooms} นอน · {spec.bathrooms} น้ำ · {spec.parking} จอด
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 

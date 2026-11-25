@@ -67,7 +67,12 @@ export function MusicJukeboxModal({
     Math.round(luxuryMusicEngine.getSnapshot().volume * 100)
   );
   const [shuffleMode, setShuffleMode] = useState<boolean>(false);
-  const [elapsedSec, setElapsedSec] = useState<number>(0);
+  const [elapsedSec, setElapsedSec] = useState<number>(
+    () => luxuryMusicEngine.getSnapshot().elapsedSec
+  );
+  const [durationSec, setDurationSec] = useState<number>(
+    () => luxuryMusicEngine.getSnapshot().durationSec
+  );
 
   // Optional user-uploaded local audio file (MP3/M4A/WAV)
   const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
@@ -77,7 +82,6 @@ export function MusicJukeboxModal({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeTrackRef = useRef<LuxuryTrack | null>(null);
-  const lastTrackIdRef = useRef<string | null>(null);
   const filteredTracksRef = useRef<LuxuryTrack[]>(LUXURY_PLAYLIST);
   const shuffleModeRef = useRef<boolean>(false);
   const stepTrackRef = useRef<(direction: 'next' | 'prev') => void>(() => {});
@@ -107,6 +111,8 @@ export function MusicJukeboxModal({
       return (
         track.title.toLowerCase().includes(q) ||
         track.subtitle.toLowerCase().includes(q) ||
+        track.artist.toLowerCase().includes(q) ||
+        track.album.toLowerCase().includes(q) ||
         track.moodNote.toLowerCase().includes(q)
       );
     });
@@ -130,6 +136,7 @@ export function MusicJukeboxModal({
       stopLocalAudio();
       setActiveTrack(track);
       setElapsedSec(0);
+      setDurationSec(track.durationSec);
       setIsPlaying(true);
       luxuryMusicEngine.setVolume(volume / 100);
       luxuryMusicEngine.setMuted(isMuted);
@@ -176,18 +183,16 @@ export function MusicJukeboxModal({
     stepTrackRef.current = handleStepTrack;
   }, [handleStepTrack]);
 
-  // Subscribe to luxuryMusicEngine and enable auto-play automatically on mount
+  // Subscribe to hit music engine and enable auto-play automatically on mount
   useEffect(() => {
     const unsubscribe = luxuryMusicEngine.subscribe((snap) => {
-      if (snap.track?.id !== lastTrackIdRef.current) {
-        lastTrackIdRef.current = snap.track?.id ?? null;
-        setElapsedSec(0);
-      }
       setActiveTrack(snap.track);
       setIsPlaying(snap.playing);
       setWaitingForGesture(snap.waitingForGesture);
       setIsMuted(snap.muted);
       setVolume(Math.round(snap.volume * 100));
+      setElapsedSec(snap.elapsedSec);
+      setDurationSec(snap.durationSec);
     });
 
     luxuryMusicEngine.enableAutoPlay(() => {
@@ -199,15 +204,6 @@ export function MusicJukeboxModal({
       luxuryMusicEngine.stop();
     };
   }, []);
-
-  // Track playback elapsed timer while luxury engine is playing audibly
-  useEffect(() => {
-    if (!isPlaying || waitingForGesture || !activeTrack) return;
-    const id = window.setInterval(() => {
-      setElapsedSec((prev) => Math.min(activeTrack.durationSec, prev + 1));
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [isPlaying, waitingForGesture, activeTrack]);
 
   // Revoke local object URL cleanly when changed or unmounted
   useEffect(() => {
@@ -302,7 +298,7 @@ export function MusicJukeboxModal({
 
   const showFloatingBar = !isOpen && !waitingForGesture && Boolean(activeTrack || localAudioUrl);
   const progressPct = activeTrack
-    ? Math.min(100, (elapsedSec / Math.max(1, activeTrack.durationSec)) * 100)
+    ? Math.min(100, (elapsedSec / Math.max(1, durationSec || activeTrack.durationSec)) * 100)
     : 0;
 
   return (
@@ -340,7 +336,7 @@ export function MusicJukeboxModal({
         <div
           role={isOpen ? 'dialog' : undefined}
           aria-modal={isOpen ? 'true' : undefined}
-          aria-label="คลังเพลงบรรเลงลักชัวรีประจำโครงการ"
+          aria-label="คลังเพลงฮิตประจำโครงการ"
           onClick={(e) => e.stopPropagation()}
           className={
             isOpen
@@ -357,10 +353,10 @@ export function MusicJukeboxModal({
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-base sm:text-lg font-bold font-display text-white truncate">
-                    Luxury Lounge &amp; Botanical Instrumental
+                    Top 20 Hit Songs · เพลงฮิตไทย &amp; สากล
                   </h2>
                   <p className="text-xs text-zinc-400 truncate">
-                    เพลงบรรเลงสุดหรู {LUXURY_PLAYLIST.length} บทเพลง (Grand Piano · Harp · Hotel Lounge Jazz · Velvet Strings)
+                    รวมเพลงฮิตยอดนิยม {LUXURY_PLAYLIST.length} เพลง เล่นต่อเนื่องอัตโนมัติ (T-Pop · ไทยป๊อป · Global Hits · R&amp;B)
                   </p>
                 </div>
               </div>
@@ -396,52 +392,74 @@ export function MusicJukeboxModal({
                   : 'flex items-center gap-2.5 min-w-0 flex-1'
               }
             >
-              {/* Luxury Visual Soundstage */}
+              {/* Hit Song Album Cover & Soundstage */}
               {isOpen ? (
-                <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-[#1F2731] via-[#13181F] to-[#0D1015] border border-[#C59B48]/25 p-5 flex flex-col items-center justify-center text-center shrink-0">
+                <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-[#1F2731] via-[#13181F] to-[#0D1015] border border-[#C59B48]/25 p-4 flex flex-col items-center justify-center text-center shrink-0">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_25%,rgba(197,155,72,0.16),transparent_65%)] pointer-events-none" />
 
-                  <div
-                    className={`relative w-16 h-16 rounded-full border flex items-center justify-center mb-3 transition-transform duration-700 ${
-                      isPlaying || isLocalAudioPlaying
-                        ? 'border-[#E5C57B]/70 bg-[#C59B48]/15 scale-105'
-                        : 'border-white/15 bg-white/5'
-                    }`}
-                  >
-                    <Disc3
-                      className={`w-8 h-8 text-[#E5C57B] ${
-                        isPlaying || isLocalAudioPlaying ? 'animate-spin' : ''
+                  {activeTrack?.artworkUrl ? (
+                    <div className="relative mb-2.5 flex items-center justify-center">
+                      <img
+                        src={activeTrack.artworkUrl}
+                        alt={activeTrack.title}
+                        referrerPolicy="no-referrer"
+                        className={`relative z-10 w-20 h-20 rounded-2xl object-cover border border-[#E5C57B]/60 shadow-[0_10px_28px_rgba(0,0,0,0.5)] transition-transform duration-500 ${
+                          isPlaying ? 'scale-105' : 'opacity-85'
+                        }`}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className={`relative w-16 h-16 rounded-full border flex items-center justify-center mb-3 transition-transform duration-700 ${
+                        isPlaying || isLocalAudioPlaying
+                          ? 'border-[#E5C57B]/70 bg-[#C59B48]/15 scale-105'
+                          : 'border-white/15 bg-white/5'
                       }`}
-                      style={{ animationDuration: '8s' }}
-                    />
-                  </div>
+                    >
+                      <Disc3
+                        className={`w-8 h-8 text-[#E5C57B] ${
+                          isPlaying || isLocalAudioPlaying ? 'animate-spin' : ''
+                        }`}
+                        style={{ animationDuration: '8s' }}
+                      />
+                    </div>
+                  )}
 
                   {/* Subtle Equalizer Bars */}
-                  <div className="flex items-end justify-center gap-1.5 h-6 mb-2" aria-hidden="true">
-                    {[14, 22, 18, 24, 15, 20, 12].map((h, i) => (
+                  <div className="flex items-end justify-center gap-1.5 h-5 mb-1.5" aria-hidden="true">
+                    {[12, 20, 15, 22, 13, 18, 10].map((h, i) => (
                       <span
                         key={i}
                         className={`w-1 rounded-full bg-gradient-to-t from-[#C59B48] to-[#F3DC9E] transition-all duration-300 ${
                           isPlaying || isLocalAudioPlaying ? 'animate-pulse' : 'opacity-35'
                         }`}
                         style={{
-                          height: isPlaying || isLocalAudioPlaying ? `${h}px` : '6px',
+                          height: isPlaying || isLocalAudioPlaying ? `${h}px` : '5px',
                           animationDelay: `${i * 110}ms`,
                         }}
                       />
                     ))}
                   </div>
 
-                  <p className="relative text-xs font-medium text-[#E5C57B] tracking-wide uppercase">
+                  <p className="relative text-[11px] font-medium text-[#E5C57B] tracking-wide uppercase">
                     {activeTrack
-                      ? isPlaying
-                        ? 'Now Playing · Luxury Acoustic'
+                      ? waitingForGesture
+                        ? 'แตะเพื่อเปิดเพลงฮิต'
+                        : isPlaying
+                        ? 'Now Playing · Hit Song'
                         : 'Paused'
                       : localAudioName
                       ? 'Local Audio File'
-                      : 'CENTRO Soundscape'}
+                      : 'CENTRO Top 20 Hits'}
                   </p>
                 </div>
+              ) : activeTrack?.artworkUrl ? (
+                <img
+                  src={activeTrack.artworkUrl}
+                  alt={activeTrack.title}
+                  referrerPolicy="no-referrer"
+                  className="w-9 h-9 rounded-lg object-cover border border-[#C59B48]/45 shrink-0"
+                />
               ) : (
                 <div className="w-9 h-9 rounded-lg bg-[#C59B48]/15 border border-[#C59B48]/35 flex items-center justify-center shrink-0">
                   <Disc3
@@ -485,13 +503,13 @@ export function MusicJukeboxModal({
                     <>
                       <div className="text-xs font-semibold text-[#E5C57B] flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" />
-                        คลังเพลงบรรเลงลักชัวรี ({LUXURY_PLAYLIST.length} เพลง)
+                        คลังเพลงฮิตประจำโครงการ ({LUXURY_PLAYLIST.length} เพลง)
                       </div>
                       <div className="text-sm font-bold text-white">
-                        พร้อมบรรเลงทันที ไม่มีสะดุด
+                        พร้อมเล่นทันทีไม่มีสะดุด
                       </div>
                       <div className="text-xs text-zinc-400">
-                        เลือกบทเพลงบรรเลงเปียโน ฮาร์ป แจ๊สโรงแรม 5 ดาว หรือเครื่องสายจากรายการด้านขวา
+                        เลือกเพลงฮิตไทยหรือสากลยอดนิยมจากรายการด้านขวา
                       </div>
                     </>
                   )
@@ -503,13 +521,13 @@ export function MusicJukeboxModal({
                 <div className="space-y-1.5">
                   <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-[#C59B48] to-[#F0D48F] rounded-full transition-all duration-500"
+                      className="h-full bg-gradient-to-r from-[#C59B48] to-[#F0D48F] rounded-full transition-all duration-300"
                       style={{ width: `${progressPct}%` }}
                     />
                   </div>
                   <div className="flex items-center justify-between text-[11px] font-mono-tabular text-zinc-400">
                     <span>{formatSeconds(elapsedSec)}</span>
-                    <span>{formatSeconds(activeTrack.durationSec)}</span>
+                    <span>{formatSeconds(durationSec || activeTrack.durationSec)}</span>
                   </div>
                 </div>
               )}
@@ -553,7 +571,7 @@ export function MusicJukeboxModal({
                         aria-label={isPlaying ? 'หยุดชั่วคราว' : 'เล่นเพลง'}
                         className="w-12 h-12 inline-flex items-center justify-center rounded-xl bg-[#E5C57B] hover:bg-[#D4B368] text-[#14191F] cursor-pointer transition-colors shadow-sm"
                       >
-                        {isPlaying ? (
+                        {isPlaying && !waitingForGesture ? (
                           <Pause className="w-5 h-5" />
                         ) : (
                           <Play className="w-5 h-5 ml-0.5" />
@@ -595,7 +613,7 @@ export function MusicJukeboxModal({
                       max={100}
                       value={isMuted ? 0 : volume}
                       onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                      aria-label="ระดับเสียงเพลงบรรเลง"
+                      aria-label="ระดับเสียงเพลงฮิต"
                       className="w-full accent-[#E5C57B] cursor-pointer h-1.5"
                     />
                     <span className="text-[11px] font-mono-tabular text-zinc-300 w-8 text-right">
@@ -706,7 +724,7 @@ export function MusicJukeboxModal({
               )}
             </div>
 
-            {/* RIGHT PLAYLIST DIRECTORY (only when open) — 20 Luxury Instrumentals */}
+            {/* RIGHT PLAYLIST DIRECTORY (only when open) — 20 Hit Songs */}
             {isOpen && (
               <div className="flex-1 min-h-0 flex flex-col bg-[#FFFEFC] overflow-hidden">
                 {/* Category Filter Tabs + Search */}
@@ -741,7 +759,7 @@ export function MusicJukeboxModal({
                       type="text"
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
-                      placeholder="ค้นหาชื่อเพลงบรรเลง แนวเครื่องดนตรี หรือบรรยากาศ (เช่น Piano, Harp, Jazz, Strings)..."
+                      placeholder="ค้นหาชื่อเพลงฮิต ชื่อศิลปิน หรือแนวเพลง (เช่น Jeff Satur, NONT TANONT, ROSÉ, LISA)..."
                       className="w-full h-10 pl-10 pr-9 text-xs sm:text-sm bg-[#FAF8F4] border border-[#E2DDD0] rounded-xl text-[#14191F] placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C59B48]/50 focus:border-[#C59B48]"
                     />
                     {searchText && (
@@ -757,7 +775,7 @@ export function MusicJukeboxModal({
                   </div>
                 </div>
 
-                {/* Scrollable Luxury Instrumental Track List */}
+                {/* Scrollable Hit Song Track List */}
                 <div className="flex-1 overflow-y-auto divide-y divide-[#EFEAE0]">
                   {filteredTracks.length === 0 ? (
                     <div className="p-10 text-center space-y-2">
@@ -799,18 +817,28 @@ export function MusicJukeboxModal({
                               {String(track.number).padStart(2, '0')}
                             </span>
 
-                            <div
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                                isSelected
-                                  ? 'bg-[#14191F] text-[#E5C57B]'
-                                  : 'bg-[#F3EFE6] text-[#14191F]'
-                              }`}
-                            >
-                              {isSelected && isPlaying ? (
-                                <Pause className="w-4 h-4" />
-                              ) : (
-                                <Play className="w-4 h-4 ml-0.5" />
-                              )}
+                            <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-black/10 bg-[#14191F]">
+                              <img
+                                src={track.artworkUrl}
+                                alt={track.title}
+                                referrerPolicy="no-referrer"
+                                className={`w-full h-full object-cover transition-opacity ${
+                                  isSelected ? 'opacity-45' : 'opacity-90'
+                                }`}
+                              />
+                              <div
+                                className={`absolute inset-0 flex items-center justify-center ${
+                                  isSelected
+                                    ? 'text-[#E5C57B] bg-black/25'
+                                    : 'text-white/95 bg-black/20 opacity-0 hover:opacity-100 transition-opacity'
+                                }`}
+                              >
+                                {isSelected && isPlaying && !waitingForGesture ? (
+                                  <Pause className="w-4 h-4" />
+                                ) : (
+                                  <Play className="w-4 h-4 ml-0.5" />
+                                )}
+                              </div>
                             </div>
 
                             <div className="min-w-0 flex-1">
@@ -822,7 +850,7 @@ export function MusicJukeboxModal({
                                 {track.title}
                               </div>
                               <div className="text-xs text-zinc-500 truncate">
-                                <span>{track.subtitle}</span>
+                                <span className="font-medium text-zinc-700">{track.artist}</span>
                                 <span aria-hidden="true" className="mx-1.5">
                                   ·
                                 </span>

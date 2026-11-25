@@ -1,411 +1,362 @@
 export type LuxuryCategory =
   | 'all'
-  | 'lounge-piano'
-  | 'botanical-harp'
-  | 'hotel-jazz'
-  | 'chamber-calm';
-
-export type InstrumentVoice =
-  | 'felt-piano'
-  | 'harp-pad'
-  | 'rhodes-lounge'
-  | 'velvet-strings';
+  | 'thai-chart'
+  | 'thai-chill'
+  | 'global-chart'
+  | 'global-pop';
 
 export interface LuxuryTrack {
   id: string;
   number: number;
   title: string;
-  subtitle: string;
+  subtitle: string; // Artist display label
+  artist: string;
+  album: string;
   category: Exclude<LuxuryCategory, 'all'>;
-  voice: InstrumentVoice;
-  bpm: number;
+  trackId: number;
+  previewUrl: string;
+  artworkUrl: string;
   durationSec: number;
-  chords: number[][]; // 4 rich chords in MIDI note numbers
-  melodyOffsets: number[]; // indices into active chord + upper octave
   moodNote: string;
 }
 
 export const LUXURY_CATEGORY_TABS: { id: LuxuryCategory; label: string }[] = [
   { id: 'all', label: 'ทั้งหมด (20)' },
-  { id: 'lounge-piano', label: 'Grand Piano (5)' },
-  { id: 'botanical-harp', label: 'Harp & Garden (5)' },
-  { id: 'hotel-jazz', label: 'Five-Star Lounge (5)' },
-  { id: 'chamber-calm', label: 'Velvet Strings (5)' },
+  { id: 'thai-chart', label: 'เพลงไทยติดชาร์ต (5)' },
+  { id: 'thai-chill', label: 'ไทยป๊อปฟังสบาย (5)' },
+  { id: 'global-chart', label: 'เพลงสากลติดกระแส (5)' },
+  { id: 'global-pop', label: 'สากลป๊อป & R&B ฮิต (5)' },
 ];
 
 export const LUXURY_PLAYLIST: LuxuryTrack[] = [
-  // 1. Grand Lounge Piano (5)
+  // 1. เพลงไทยติดชาร์ต (5)
   {
-    id: 'lux-01',
+    id: 'hit-01',
     number: 1,
-    title: 'Champagne Morning Prelude',
-    subtitle: 'Felt Grand Piano · C Maj9',
-    category: 'lounge-piano',
-    voice: 'felt-piano',
-    bpm: 66,
-    durationSec: 120,
-    chords: [
-      [48, 55, 59, 62, 64], // Cmaj9
-      [45, 52, 55, 59, 60], // Am9
-      [41, 48, 52, 55, 57], // Fmaj9
-      [43, 50, 53, 57, 59], // G13sus4
-    ],
-    melodyOffsets: [2, 3, 4, 2, 3, 4, 5, 3],
-    moodNote: 'เปียโนนุ่มละมุนยามเช้า โปร่งสบายระดับแกลเลอรี',
+    title: 'ซ่อน(ไม่)หา (Ghost)',
+    subtitle: 'Jeff Satur',
+    artist: 'Jeff Satur',
+    album: 'Ghost - Single',
+    category: 'thai-chart',
+    trackId: 1724685427,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/be/ea/9c/beea9cc5-2f4a-657a-cda1-5e5ef382ba7a/mzaf_6797589711112840217.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/2d/8a/7c/2d8a7c7b-5ebd-6f42-8300-69730a55a2eb/5054197954672.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เพลงฮิตติดชาร์ตอันดับ 1 ของ Jeff Satur น้ำเสียงทรงพลัง',
   },
   {
-    id: 'lux-02',
+    id: 'hit-02',
     number: 2,
-    title: 'Velvet Foyer Nocturne',
-    subtitle: 'Warm Acoustic Piano · Eb Maj7',
-    category: 'lounge-piano',
-    voice: 'felt-piano',
-    bpm: 60,
-    durationSec: 135,
-    chords: [
-      [51, 58, 62, 65, 67], // Ebmaj9
-      [48, 55, 58, 62, 63], // Cm9
-      [44, 51, 55, 58, 60], // Abmaj9
-      [46, 53, 56, 60, 62], // Bb9sus4
-    ],
-    melodyOffsets: [4, 3, 2, 4, 5, 3, 2, 1],
-    moodNote: 'โทนอบอุ่นสุขุม เหมาะกับโถงต้อนรับสไตล์โมเดิร์นลักชัวรี',
+    title: 'โต๊ะริม (Melt)',
+    subtitle: 'NONT TANONT',
+    artist: 'NONT TANONT',
+    album: 'โต๊ะริม (Melt) - Single',
+    category: 'thai-chart',
+    trackId: 1622714542,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f4/5f/f4/f45ff486-6fa0-9df5-9d58-8ed552c86140/mzaf_5412811150878921175.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/5d/70/fe/5d70fe6e-f3e4-c874-a2de-e4ecd186bf80/cover.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เพลงป๊อปอารมณ์ดีสุดฮิตจาก นนท์ ธนนท์',
   },
   {
-    id: 'lux-03',
+    id: 'hit-03',
     number: 3,
-    title: 'Sunlit Marble Courtyard',
-    subtitle: 'Bright Lounge Piano · G Maj9',
-    category: 'lounge-piano',
-    voice: 'felt-piano',
-    bpm: 72,
-    durationSec: 115,
-    chords: [
-      [43, 50, 54, 57, 59], // Gmaj9
-      [40, 47, 50, 54, 55], // Em9
-      [48, 55, 59, 62, 64], // Cmaj9
-      [45, 52, 55, 59, 62], // Am11
-    ],
-    melodyOffsets: [1, 2, 4, 3, 2, 4, 5, 4],
-    moodNote: 'จังหวะพลิ้วไหวสดใส สะท้อนแสงแดดอ่อนบนหินอ่อน',
+    title: 'ฝนตกไหม',
+    subtitle: 'Three Man Down',
+    artist: 'Three Man Down',
+    album: 'This City Won’t Be Lonely Anymore',
+    category: 'thai-chart',
+    trackId: 1792752632,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/34/d2/65/34d2659e-148d-c029-0cc8-60d75ca37f13/mzaf_12794166550202757517.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/fc/22/ba/fc22ba00-0d93-66cd-dce0-ded6923c8537/888332922777.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เพลงฮิตระดับร้อยล้านวิวของ Three Man Down',
   },
   {
-    id: 'lux-04',
+    id: 'hit-04',
     number: 4,
-    title: 'Golden Hour Reverie',
-    subtitle: 'Lyrical Felt Piano · F Maj9',
-    category: 'lounge-piano',
-    voice: 'felt-piano',
-    bpm: 62,
-    durationSec: 130,
-    chords: [
-      [41, 48, 52, 55, 57], // Fmaj9
-      [45, 52, 55, 59, 60], // Am9
-      [46, 53, 57, 60, 62], // Bbmaj9
-      [48, 55, 58, 62, 65], // C11
-    ],
-    melodyOffsets: [3, 4, 5, 3, 2, 3, 4, 2],
-    moodNote: 'บรรยากาศช่วงเวลาสีทองยามเย็น ละเมียดละไมและผ่อนคลาย',
+    title: 'เพื่อนเล่น ไม่เล่นเพื่อน (feat. MILLI)',
+    subtitle: 'Tilly Birds',
+    artist: 'Tilly Birds & MILLI',
+    album: 'It’s Gonna Be OK',
+    category: 'thai-chart',
+    trackId: 1792753812,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/90/b1/cf/90b1cffa-e581-488a-1978-77b61af4f9b1/mzaf_14460411884468388426.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/3a/d1/4c/3ad14c38-72fa-5cbc-558b-7ee6ef9d101e/888332916318.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'ที-ป๊อป/อัลเทอร์เนทีฟยอดฮิต จังหวะสนุกฟังติดหู',
   },
   {
-    id: 'lux-05',
+    id: 'hit-05',
     number: 5,
-    title: 'Midnight Penthouse Waltz',
-    subtitle: 'Slow Ballad Keys · D Min9',
-    category: 'lounge-piano',
-    voice: 'felt-piano',
-    bpm: 58,
-    durationSec: 140,
-    chords: [
-      [50, 57, 60, 64, 65], // Dm9
-      [46, 53, 57, 60, 62], // Bbmaj9
-      [43, 50, 53, 57, 58], // Gm9
-      [45, 52, 55, 58, 61], // A7b9
-    ],
-    melodyOffsets: [2, 4, 3, 5, 4, 2, 3, 1],
-    moodNote: 'ท่วงทำนองเรียบหรูชวนเคลิ้ม สำหรับค่ำคืนอันเงียบสงบ',
+    title: 'วาดไว้ (Recall)',
+    subtitle: 'BOWKYLION',
+    artist: 'BOWKYLION',
+    album: 'วาดไว้ (Recall) - Single',
+    category: 'thai-chart',
+    trackId: 1829231896,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/14/66/49/1466491a-b745-525c-7b96-321b4fd231d0/mzaf_16914207157708959097.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/0f/0f/42/0f0f4249-8f24-a6e8-56e4-6ec088900d93/25UMGIM79865.rgb.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เพลงฮิตกินใจเสียงร้องละมุนจาก โบกี้ไลอ้อน',
   },
 
-  // 2. Botanical & Harp (5)
+  // 2. ไทยป๊อปฟังสบาย (5)
   {
-    id: 'lux-06',
+    id: 'hit-06',
     number: 6,
-    title: 'Sanctuary Silk Breeze',
-    subtitle: 'Golden Harp & Pad · A Maj9',
-    category: 'botanical-harp',
-    voice: 'harp-pad',
-    bpm: 62,
-    durationSec: 125,
-    chords: [
-      [45, 52, 56, 59, 61], // Amaj9
-      [42, 49, 52, 56, 57], // F#m9
-      [50, 57, 61, 64, 66], // Dmaj9
-      [47, 54, 57, 61, 64], // Bm11
-    ],
-    melodyOffsets: [0, 2, 3, 4, 5, 4, 3, 2],
-    moodNote: 'เสียงฮาร์ปพริ้วใสผสานคอร์ดอุ่นดุจสายลมในสวนส่วนตัว',
+    title: 'ชอบตัวเองตอนอยู่กับเธอ (I Like Us)',
+    subtitle: 'BILLKIN',
+    artist: 'BILLKIN',
+    album: 'ชอบตัวเองตอนอยู่กับเธอ - Single',
+    category: 'thai-chill',
+    trackId: 1635564114,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/c7/69/c4/c769c412-77a9-781b-3326-1c3de343acc3/mzaf_3426441544729006461.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/7b/65/5b/7b655b08-2460-38c9-353b-47f4666b2a2f/22UMGIM78199.rgb.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'โซลป๊อปอบอุ่นหัวใจ จากเสียงร้องมีเสน่ห์ของบิวกิ้น',
   },
   {
-    id: 'lux-07',
+    id: 'hit-07',
     number: 7,
-    title: 'Morning Dew Pavilion',
-    subtitle: 'Crystalline Arpeggio · E Maj7',
-    category: 'botanical-harp',
-    voice: 'harp-pad',
-    bpm: 68,
-    durationSec: 118,
-    chords: [
-      [40, 47, 51, 54, 56], // Emaj9
-      [49, 56, 59, 63, 64], // C#m9
-      [45, 52, 56, 59, 61], // Amaj9
-      [47, 54, 57, 61, 63], // B9sus4
-    ],
-    melodyOffsets: [1, 3, 4, 5, 3, 2, 4, 3],
-    moodNote: 'โน้ตใสกระจ่างเหมือนหยดน้ำค้างบนศาลาพักผ่อน',
+    title: "สายตาหลอกกันไม่ได้ (Eyes don't lie)",
+    subtitle: 'Ink Waruntorn',
+    artist: 'Ink Waruntorn',
+    album: "สายตาหลอกกันไม่ได้ (Eyes don't lie)",
+    category: 'thai-chill',
+    trackId: 1861516784,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/64/a6/db/64a6db06-8931-cd05-30a7-6ff976ed96ca/mzaf_1200240892676868907.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/90/c3/5b/90c35b5b-ba74-e3fb-1a0e-6ba03e914c93/0840102441345_Cover.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'ซินธ์ป๊อปเสียงใสชวนฝัน จาก อิ้งค์ วรันธร',
   },
   {
-    id: 'lux-08',
+    id: 'hit-08',
     number: 8,
-    title: 'Terrace Rain & Tea',
-    subtitle: 'Soft Pluck & Shimmer · D Maj9',
-    category: 'botanical-harp',
-    voice: 'harp-pad',
-    bpm: 64,
-    durationSec: 124,
-    chords: [
-      [50, 57, 61, 64, 66], // Dmaj9
-      [47, 54, 57, 61, 62], // Bm9
-      [43, 50, 54, 57, 59], // Gmaj9
-      [45, 52, 55, 59, 61], // A13
-    ],
-    melodyOffsets: [2, 4, 3, 2, 5, 4, 2, 3],
-    moodNote: 'ความสงบละมุนดุจนั่งจิบชาชมสวนหลังฝนพรำ',
+    title: 'ใกล้ (Close)',
+    subtitle: 'SCRUBB',
+    artist: 'SCRUBB',
+    album: 'Club',
+    category: 'thai-chill',
+    trackId: 554571894,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/cb/bd/73/cbbd7357-98ab-bd5d-02a4-1401d541b115/mzaf_18293941087721276643.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/ff/2a/7b/ff2a7bb1-7993-c9e1-61ae-55414fcd48be/884977628104.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เพลงฮิตตลอดกาล ฟังกี่ครั้งก็อบอุ่นสบายใจ',
   },
   {
-    id: 'lux-09',
+    id: 'hit-09',
     number: 9,
-    title: 'Private Garden Serenade',
-    subtitle: 'Acoustic Harp Blend · Bb Maj7',
-    category: 'botanical-harp',
-    voice: 'harp-pad',
-    bpm: 60,
-    durationSec: 132,
-    chords: [
-      [46, 53, 57, 60, 62], // Bbmaj9
-      [43, 50, 53, 57, 58], // Gm9
-      [51, 58, 62, 65, 67], // Ebmaj9
-      [48, 55, 58, 62, 65], // Cm11
-    ],
-    melodyOffsets: [0, 1, 3, 4, 5, 3, 2, 4],
-    moodNote: 'อารมณ์หรูหราอ่อนโยนสำหรับการเดินชมคลับเฮาส์และสวน',
+    title: 'สลักจิต (feat. ดา เอ็นโดรฟิน)',
+    subtitle: 'Pop Pongkool',
+    artist: 'Pop Pongkool & Da Endorphine',
+    album: 'สลักจิต - Single',
+    category: 'thai-chill',
+    trackId: 1792747349,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/e6/6e/34/e66e34c2-c971-ef2c-2e0f-f8a99e220912/mzaf_7695861381642299193.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/8c/69/cb/8c69cba7-b440-a3b3-b9c0-8e409b8613f2/888332908481.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'ดูเอตระดับตำนาน ป๊อบ ปองกูล x ดา เอ็นโดรฟิน',
   },
   {
-    id: 'lux-10',
+    id: 'hit-10',
     number: 10,
-    title: 'Lotus Pond Reflection',
-    subtitle: 'Zen Luxury Harp · G Pentatonic',
-    category: 'botanical-harp',
-    voice: 'harp-pad',
-    bpm: 56,
-    durationSec: 140,
-    chords: [
-      [43, 50, 55, 57, 59], // G6/9
-      [40, 47, 52, 55, 57], // Em7/11
-      [48, 55, 57, 62, 64], // C6/9
-      [45, 52, 55, 57, 62], // Am11
-    ],
-    melodyOffsets: [4, 2, 3, 5, 4, 3, 1, 2],
-    moodNote: 'เพนทาโทนิกสงบเย็น ปลอบประโลมใจดุจสปาระดับไฮเอนด์',
+    title: 'พบกันใหม่ (So Long)',
+    subtitle: 'Polycat',
+    artist: 'Polycat',
+    album: '80 Kisses',
+    category: 'thai-chill',
+    trackId: 1219179133,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/d7/db/c6/d7dbc6b7-df68-509b-393c-d2e7461e4782/mzaf_16441888389148470421.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/83/11/6f/83116f31-73a4-3df3-6c5f-6658aabbea49/cover.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เรโทรซินธ์ป๊อปสุดฮิตจาก Polycat',
   },
 
-  // 3. Five-Star Hotel Jazz (5)
+  // 3. เพลงสากลติดกระแส (5)
   {
-    id: 'lux-11',
+    id: 'hit-11',
     number: 11,
-    title: 'Lobby Jazz at Dusk',
-    subtitle: 'Warm Lounge Rhodes · F Maj7',
-    category: 'hotel-jazz',
-    voice: 'rhodes-lounge',
-    bpm: 74,
-    durationSec: 115,
-    chords: [
-      [41, 48, 52, 55, 57], // Fmaj9
-      [50, 57, 60, 64, 65], // Dm9
-      [43, 50, 53, 57, 58], // Gm9
-      [48, 55, 58, 62, 64], // C13
-    ],
-    melodyOffsets: [3, 4, 2, 3, 5, 4, 3, 2],
-    moodNote: 'เสียงคีย์บอร์ดโรดส์นุ่มอุ่น สไตล์เลานจ์โรงแรม 5 ดาว',
+    title: 'APT.',
+    subtitle: 'ROSÉ & Bruno Mars',
+    artist: 'ROSÉ & Bruno Mars',
+    album: 'rosie',
+    category: 'global-chart',
+    trackId: 1771105935,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/70/41/42/70414259-14f5-245e-bd79-93c80401d556/mzaf_8687698460653166345.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/14/66/2d14661b-345b-d0f3-4e86-56ef626e68aa/075679629203.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เมกะฮิตระดับโลก จังหวะสนุกสดใสจาก ROSÉ & Bruno Mars',
   },
   {
-    id: 'lux-12',
+    id: 'hit-12',
     number: 12,
-    title: 'Rama II Twilight Lounge',
-    subtitle: 'Smooth Neo-Jazz · C Min9',
-    category: 'hotel-jazz',
-    voice: 'rhodes-lounge',
-    bpm: 68,
-    durationSec: 126,
-    chords: [
-      [48, 55, 58, 62, 63], // Cm9
-      [41, 48, 51, 55, 56], // Fm9
-      [44, 51, 55, 58, 60], // Abmaj9
-      [43, 50, 53, 57, 59], // G13b9
-    ],
-    melodyOffsets: [4, 3, 5, 4, 2, 3, 4, 1],
-    moodNote: 'โทนแจ๊สนุ่มลึก สง่างามและมีรสนิยม',
+    title: 'Die With A Smile',
+    subtitle: 'Lady Gaga & Bruno Mars',
+    artist: 'Lady Gaga & Bruno Mars',
+    album: 'Die With A Smile - Single',
+    category: 'global-chart',
+    trackId: 1762656732,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/07/6a/99/076a99ed-b946-431b-6f1f-54fa187ca5bd/mzaf_8102882277995122875.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/11/ae/f2/11aef294-f57c-bab9-c9fc-529162984e62/24UMGIM85348.rgb.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'บัลลาดระดับโลก เสียงประสานสุดหรูของ Lady Gaga & Bruno Mars',
   },
   {
-    id: 'lux-13',
+    id: 'hit-13',
     number: 13,
-    title: 'Espresso & Travertine',
-    subtitle: 'Bossa Lounge Keys · G Maj7',
-    category: 'hotel-jazz',
-    voice: 'rhodes-lounge',
-    bpm: 78,
-    durationSec: 112,
-    chords: [
-      [43, 50, 54, 57, 59], // Gmaj9
-      [45, 52, 55, 59, 60], // Am9
-      [50, 57, 60, 64, 66], // D13
-      [40, 47, 50, 54, 55], // Em9
-    ],
-    melodyOffsets: [2, 3, 5, 4, 2, 4, 3, 1],
-    moodNote: 'กลิ่นอาย Bossa Lounge เบาๆ ฟังเพลินระหว่างชมแบบบ้าน',
+    title: 'Espresso',
+    subtitle: 'Sabrina Carpenter',
+    artist: 'Sabrina Carpenter',
+    album: 'Espresso - Single',
+    category: 'global-chart',
+    trackId: 1744253558,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/48/14/5f/48145fa9-a5b6-32a0-45e8-05af48e52b9c/mzaf_6315924685303002328.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/3a/09/fa/3a09fabd-7a71-d0d7-3e6a-7f3c4c89014e/24UMGIM32304.rgb.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'ป๊อปกรูฟติดหูอันดับ 1 ชาร์ตโลกจาก Sabrina Carpenter',
   },
   {
-    id: 'lux-14',
+    id: 'hit-14',
     number: 14,
-    title: 'Obsidian Bar Interlude',
-    subtitle: 'Velvet Electric Piano · Ab Maj9',
-    category: 'hotel-jazz',
-    voice: 'rhodes-lounge',
-    bpm: 66,
-    durationSec: 128,
-    chords: [
-      [44, 51, 55, 58, 60], // Abmaj9
-      [41, 48, 51, 55, 56], // Fm9
-      [49, 56, 60, 63, 65], // Dbmaj9
-      [51, 58, 61, 65, 67], // Eb13
-    ],
-    melodyOffsets: [3, 5, 4, 2, 3, 4, 2, 1],
-    moodNote: 'คอร์ด Neo-Soul หรูหราน่าค้นหา เหมือนไพรเวทคลับ',
+    title: 'BIRDS OF A FEATHER',
+    subtitle: 'Billie Eilish',
+    artist: 'Billie Eilish',
+    album: 'HIT ME HARD AND SOFT',
+    category: 'global-chart',
+    trackId: 1739659142,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/34/31/d3/3431d34e-847f-5d66-df83-0bce688d997e/mzaf_18106743962423782018.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/92/9f/69/929f69f1-9977-3a44-d674-11f70c852d1b/24UMGIM36186.rgb.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เพลงฮิตยอดสตรีมสูงสุดจาก Billie Eilish',
   },
   {
-    id: 'lux-15',
+    id: 'hit-15',
     number: 15,
-    title: 'Champagne Flute Solitude',
-    subtitle: 'Cocktail Lounge Keys · Eb Maj9',
-    category: 'hotel-jazz',
-    voice: 'rhodes-lounge',
-    bpm: 70,
-    durationSec: 120,
-    chords: [
-      [51, 58, 62, 65, 67], // Ebmaj9
-      [43, 50, 53, 57, 58], // Gm7
-      [48, 55, 58, 62, 63], // Cm9
-      [46, 53, 56, 60, 62], // Bb13
-    ],
-    melodyOffsets: [4, 2, 3, 5, 4, 3, 2, 4],
-    moodNote: 'เสียงเปียโนไฟฟ้าใสละมุน สำหรับการพักผ่อนเหนือระดับ',
+    title: 'Rockstar',
+    subtitle: 'LISA',
+    artist: 'LISA',
+    album: 'Alter Ego',
+    category: 'global-chart',
+    trackId: 1799316832,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2a/ce/ed/2aceed99-a73e-421e-89bd-7ad58a8a7c25/mzaf_17944082866403100247.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/88/f6/7f/88f67fd9-c010-e52a-d10e-f5781116b99a/196872937138.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'โกลบอลฮิตสุดเท่จาก ลิซ่า (LISA)',
   },
 
-  // 4. Architectural Strings & Calm (5)
+  // 4. สากลป๊อป & R&B ฮิต (5)
   {
-    id: 'lux-16',
+    id: 'hit-16',
     number: 16,
-    title: 'Timeless Residence Adagio',
-    subtitle: 'Chamber Strings · D Maj7',
-    category: 'chamber-calm',
-    voice: 'velvet-strings',
-    bpm: 54,
-    durationSec: 145,
-    chords: [
-      [50, 57, 61, 64, 66], // Dmaj9
-      [45, 52, 57, 61, 64], // A/C# warm
-      [47, 54, 57, 61, 62], // Bm9
-      [43, 50, 54, 57, 59], // Gmaj9
-    ],
-    melodyOffsets: [2, 3, 4, 5, 4, 3, 2, 1],
-    moodNote: 'เครื่องสายประสานเสียงกังวานอุ่น สง่างามเหนือกาลเวลา',
+    title: 'Cruel Summer',
+    subtitle: 'Taylor Swift',
+    artist: 'Taylor Swift',
+    album: 'Lover',
+    category: 'global-pop',
+    trackId: 1468058171,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/44/af/81/44af8168-9609-1b85-5048-ada08dceacf3/mzaf_1341699644335558812.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/49/3d/ab/493dab54-f920-9043-6181-80993b8116c9/19UMGIM53909.rgb.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เพลงป๊อปยอดนิยมจากอัลบั้ม Lover ของ Taylor Swift',
   },
   {
-    id: 'lux-17',
+    id: 'hit-17',
     number: 17,
-    title: 'Silk Curtain Horizon',
-    subtitle: 'Velvet Ambient Pad · A Min9',
-    category: 'chamber-calm',
-    voice: 'velvet-strings',
-    bpm: 52,
-    durationSec: 150,
-    chords: [
-      [45, 52, 55, 59, 60], // Am9
-      [41, 48, 52, 55, 57], // Fmaj9
-      [48, 55, 59, 62, 64], // Cmaj9
-      [43, 50, 54, 57, 59], // Gmaj9
-    ],
-    melodyOffsets: [3, 4, 2, 5, 3, 4, 2, 0],
-    moodNote: 'ซาวด์แพดเนื้อเนียนดุจผ้าไหม ให้ความรู้สึกโอบกอดอบอุ่น',
+    title: 'Leave The Door Open',
+    subtitle: 'Bruno Mars & Silk Sonic',
+    artist: 'Bruno Mars, Anderson .Paak & Silk Sonic',
+    album: 'An Evening with Silk Sonic',
+    category: 'global-pop',
+    trackId: 1611637849,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/2b/a4/4e/2ba44ec0-066f-146f-7d78-d92e146bd860/mzaf_13302332917246733732.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/4e/b2/25/4eb22575-99e3-8c06-7446-51a99add8b0f/075679754585.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'R&B ระดับรางวัลแกรมมี ละมุนหรูสไตล์ Silk Sonic',
   },
   {
-    id: 'lux-18',
+    id: 'hit-18',
     number: 18,
-    title: 'Chandelier Glow',
-    subtitle: 'Strings & Soft Bell · C Maj7',
-    category: 'chamber-calm',
-    voice: 'velvet-strings',
-    bpm: 60,
-    durationSec: 132,
-    chords: [
-      [48, 55, 59, 62, 64], // Cmaj9
-      [43, 50, 54, 57, 59], // Gmaj9
-      [45, 52, 55, 59, 60], // Am9
-      [41, 48, 52, 55, 57], // Fmaj9
-    ],
-    melodyOffsets: [4, 5, 3, 4, 2, 3, 4, 5],
-    moodNote: 'ประกายเสียงใสคล้ายแสงโคมระย้าคริสตัลในห้องรับแขก',
+    title: 'Perfect',
+    subtitle: 'Ed Sheeran',
+    artist: 'Ed Sheeran',
+    album: '÷ (Divide)',
+    category: 'global-pop',
+    trackId: 1193701400,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/c7/ba/bc/c7babc66-f598-aaa6-bcf6-307281795817/mzaf_16337361235117168274.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/15/e6/e8/15e6e8a4-4190-6a8b-86c3-ab4a51b88288/190295851286.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'เพลงรักสุดคลาสสิกที่อบอุ่นลงตัวจาก Ed Sheeran',
   },
   {
-    id: 'lux-19',
+    id: 'hit-19',
     number: 19,
-    title: 'Quiet Luxury Sanctuary',
-    subtitle: 'Deep Spa Harmony · F# Min9',
-    category: 'chamber-calm',
-    voice: 'velvet-strings',
-    bpm: 50,
-    durationSec: 155,
-    chords: [
-      [42, 49, 52, 56, 57], // F#m9
-      [50, 57, 61, 64, 66], // Dmaj9
-      [45, 52, 56, 59, 61], // Amaj9
-      [40, 47, 51, 54, 56], // Emaj9
-    ],
-    melodyOffsets: [1, 3, 4, 2, 5, 3, 2, 1],
-    moodNote: 'คอร์ดช้าลึกสงบระดับไพรเวทสปา ช่วยให้จิตใจนิ่งสบาย',
+    title: 'Blinding Lights',
+    subtitle: 'The Weeknd',
+    artist: 'The Weeknd',
+    album: 'After Hours',
+    category: 'global-pop',
+    trackId: 1499378607,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/19/d6/60/19d660ff-e3a9-8377-15a3-ce4b28e89cac/mzaf_18422426156481158187.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/6f/bc/e6/6fbce6c4-c38c-72d8-4fd0-66cfff32f679/20UMGIM12176.rgb.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'ซินธ์เวฟฮิตอันดับ 1 ตลอดกาลของชาร์ต Billboard',
   },
   {
-    id: 'lux-20',
+    id: 'hit-20',
     number: 20,
-    title: 'Evening Starlight Suite',
-    subtitle: 'Grand Finale Strings · E Maj9',
-    category: 'chamber-calm',
-    voice: 'velvet-strings',
-    bpm: 56,
-    durationSec: 142,
-    chords: [
-      [40, 47, 51, 54, 56], // Emaj9
-      [47, 54, 57, 61, 63], // B/D#
-      [49, 56, 59, 63, 64], // C#m9
-      [45, 52, 56, 59, 61], // Amaj9
-    ],
-    melodyOffsets: [2, 4, 5, 3, 4, 2, 3, 5],
-    moodNote: 'บทเพลงปิดท้ายอันงดงาม อบอวลด้วยความประทับใจแห่งการอยู่อาศัย',
+    title: 'Attention',
+    subtitle: 'Charlie Puth',
+    artist: 'Charlie Puth',
+    album: 'Voicenotes',
+    category: 'global-pop',
+    trackId: 1293229677,
+    previewUrl:
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0b/76/e1/0b76e164-35b8-7fbb-a773-9832f3155532/mzaf_12020704327610118862.plus.aac.p.m4a',
+    artworkUrl:
+      'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/a8/e2/1b/a8e21b3b-9c8d-2974-2318-6bcd4c9d2370/075679884336.jpg/300x300bb.jpg',
+    durationSec: 30,
+    moodNote: 'ป๊อปเบสไลน์สุดคมจาก Charlie Puth',
   },
 ];
-
-function midiToFreq(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
 
 export interface LuxuryEngineSnapshot {
   track: LuxuryTrack | null;
@@ -413,26 +364,26 @@ export interface LuxuryEngineSnapshot {
   muted: boolean;
   volume: number;
   waitingForGesture: boolean;
+  elapsedSec: number;
+  durationSec: number;
 }
 
 type LuxuryEngineListener = (snapshot: LuxuryEngineSnapshot) => void;
 
-class LuxuryMusicEngine {
-  private ctx: AudioContext | null = null;
-  private masterGain: GainNode | null = null;
-  private lpFilter: BiquadFilterNode | null = null;
-  private timerId: number | null = null;
-  private stepIndex = 0;
+class HitMusicEngine {
+  private audio: HTMLAudioElement | null = null;
   private track: LuxuryTrack | null = null;
   private playing = false;
   private muted = false;
   private volume = 0.65;
-  private trackStartTime = 0;
-  private onTrackEndCallback: (() => void) | null = null;
+  private elapsedSec = 0;
+  private durationSec = 30;
   private waitingForGesture = false;
   private userStopped = false;
+  private onTrackEndCallback: (() => void) | null = null;
   private gestureHandlerBound: (() => void) | null = null;
   private listeners = new Set<LuxuryEngineListener>();
+  private refreshedTrackIds = new Set<number>();
 
   public getSnapshot(): LuxuryEngineSnapshot {
     return {
@@ -441,6 +392,8 @@ class LuxuryMusicEngine {
       muted: this.muted,
       volume: this.volume,
       waitingForGesture: this.waitingForGesture,
+      elapsedSec: this.elapsedSec,
+      durationSec: this.durationSec,
     };
   }
 
@@ -457,60 +410,86 @@ class LuxuryMusicEngine {
     this.listeners.forEach((fn) => fn(snap));
   }
 
-  private ensureContext(): AudioContext | null {
+  private ensureAudio(): HTMLAudioElement | null {
     if (typeof window === 'undefined') return null;
-    if (!this.ctx) {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return null;
-      this.ctx = new AudioCtx();
+    if (!this.audio) {
+      const el = new Audio();
+      el.preload = 'auto';
+      el.crossOrigin = 'anonymous';
+      el.volume = this.volume;
+      el.muted = this.muted;
 
-      const compressor = this.ctx.createDynamicsCompressor();
-      compressor.threshold.value = -16;
-      compressor.knee.value = 18;
-      compressor.ratio.value = 3;
+      el.addEventListener('timeupdate', () => {
+        this.elapsedSec = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+        if (Number.isFinite(el.duration) && el.duration > 0) {
+          this.durationSec = Math.round(el.duration);
+        }
+        this.emit();
+      });
 
-      this.lpFilter = this.ctx.createBiquadFilter();
-      this.lpFilter.type = 'lowpass';
-      this.lpFilter.frequency.value = 2100;
-      this.lpFilter.Q.value = 0.5;
-
-      // Subtle warm delay reverb network
-      const delayL = this.ctx.createDelay(1.0);
-      delayL.delayTime.value = 0.34;
-      const delayR = this.ctx.createDelay(1.0);
-      delayR.delayTime.value = 0.51;
-      const wetFilter = this.ctx.createBiquadFilter();
-      wetFilter.type = 'lowpass';
-      wetFilter.frequency.value = 1150;
-      const wetGain = this.ctx.createGain();
-      wetGain.gain.value = 0.24;
-
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = this.muted ? 0 : this.volume * 0.42;
-
-      this.lpFilter.connect(compressor);
-      this.lpFilter.connect(delayL);
-      delayL.connect(delayR);
-      delayR.connect(wetFilter);
-      wetFilter.connect(wetGain);
-      wetGain.connect(compressor);
-
-      compressor.connect(this.masterGain);
-      this.masterGain.connect(this.ctx.destination);
-    }
-    if (this.ctx.state === 'suspended') {
-      void this.ctx.resume().then(() => {
-        if (this.playing && this.waitingForGesture && !this.userStopped) {
-          this.waitingForGesture = false;
-          this.removeGestureListeners();
-          this.beginPlaybackLoop();
+      el.addEventListener('loadedmetadata', () => {
+        if (Number.isFinite(el.duration) && el.duration > 0) {
+          this.durationSec = Math.round(el.duration);
           this.emit();
         }
-      }).catch(() => {});
+      });
+
+      el.addEventListener('playing', () => {
+        if (!this.userStopped) {
+          this.playing = true;
+          this.waitingForGesture = false;
+          this.removeGestureListeners();
+          this.emit();
+        }
+      });
+
+      el.addEventListener('ended', () => {
+        this.elapsedSec = 0;
+        if (this.onTrackEndCallback) {
+          this.onTrackEndCallback();
+        }
+      });
+
+      el.addEventListener('error', () => {
+        if (!this.track || this.userStopped) return;
+        const currentTrack = this.track;
+        if (!this.refreshedTrackIds.has(currentTrack.trackId)) {
+          this.refreshedTrackIds.add(currentTrack.trackId);
+          void this.refreshAndReplay(currentTrack);
+        } else if (this.onTrackEndCallback) {
+          this.onTrackEndCallback();
+        }
+      });
+
+      this.audio = el;
     }
-    return this.ctx;
+    return this.audio;
+  }
+
+  private async refreshAndReplay(track: LuxuryTrack) {
+    try {
+      const res = await fetch(
+        `https://itunes.apple.com/lookup?id=${track.trackId}&country=th`
+      );
+      const data = (await res.json()) as {
+        results?: Array<{ previewUrl?: string }>;
+      };
+      const freshUrl = data.results?.[0]?.previewUrl;
+      if (freshUrl && this.track?.id === track.id && !this.userStopped) {
+        track.previewUrl = freshUrl;
+        const el = this.ensureAudio();
+        if (el) {
+          el.src = freshUrl;
+          void this.tryPlayElement(el);
+          return;
+        }
+      }
+    } catch {
+      // Ignore network fallback failure and step to next song
+    }
+    if (this.onTrackEndCallback && !this.userStopped) {
+      this.onTrackEndCallback();
+    }
   }
 
   private removeGestureListeners() {
@@ -544,31 +523,56 @@ class LuxuryMusicEngine {
     });
   }
 
+  private tryPlayElement(el: HTMLAudioElement) {
+    el.muted = this.muted;
+    el.volume = this.volume;
+    try {
+      const playPromise = el.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            if (!this.userStopped) {
+              this.playing = true;
+              this.waitingForGesture = false;
+              this.removeGestureListeners();
+              this.emit();
+            }
+          })
+          .catch(() => {
+            if (!this.userStopped) {
+              this.waitingForGesture = true;
+              this.installGestureListeners();
+              this.emit();
+            }
+          });
+      }
+    } catch {
+      this.waitingForGesture = true;
+      this.installGestureListeners();
+      this.emit();
+    }
+  }
+
   public unlockFromGesture() {
     if (this.userStopped) return;
-    const ctx = this.ensureContext();
-    if (!ctx) return;
+    const el = this.ensureAudio();
+    if (!el) return;
 
     if (!this.track) {
       this.track = LUXURY_PLAYLIST[0];
-      this.stepIndex = 0;
-      this.trackStartTime = Date.now();
+      this.durationSec = this.track.durationSec;
+      this.elapsedSec = 0;
     }
+
+    if (el.src !== this.track.previewUrl) {
+      el.src = this.track.previewUrl;
+    }
+
     this.playing = true;
     this.waitingForGesture = false;
     this.removeGestureListeners();
-
-    if (ctx.state === 'suspended') {
-      void ctx.resume().then(() => {
-        if (this.playing && !this.userStopped) {
-          this.beginPlaybackLoop();
-          this.emit();
-        }
-      }).catch(() => {});
-    } else {
-      this.beginPlaybackLoop();
-      this.emit();
-    }
+    this.tryPlayElement(el);
+    this.emit();
   }
 
   public enableAutoPlay(onTrackEnd?: () => void) {
@@ -576,183 +580,39 @@ class LuxuryMusicEngine {
     if (onTrackEnd) {
       this.onTrackEndCallback = onTrackEnd;
     }
+    const el = this.ensureAudio();
+    if (!el) return;
+
     if (!this.track) {
       this.track = LUXURY_PLAYLIST[0];
-      this.stepIndex = 0;
-      this.trackStartTime = Date.now();
+      this.durationSec = this.track.durationSec;
+      this.elapsedSec = 0;
     }
+
+    if (el.src !== this.track.previewUrl) {
+      el.src = this.track.previewUrl;
+    }
+
     this.playing = true;
-
-    const ctx = this.ensureContext();
-    if (ctx && ctx.state === 'running') {
-      this.waitingForGesture = false;
-      this.removeGestureListeners();
-      if (this.timerId === null) {
-        this.beginPlaybackLoop();
-      }
-      this.emit();
-      return;
-    }
-
-    // Browser requires a user gesture before AudioContext can produce sound
-    this.waitingForGesture = true;
-    this.installGestureListeners();
+    this.tryPlayElement(el);
     this.emit();
-  }
-
-  private beginPlaybackLoop() {
-    if (!this.track || !this.ctx) return;
-    this.stopTimer();
-    this.trackStartTime = this.trackStartTime || Date.now();
-
-    if (this.masterGain) {
-      const targetGain = this.muted ? 0 : this.volume * 0.42;
-      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.masterGain.gain.setValueAtTime(
-        Math.max(0.0001, this.masterGain.gain.value),
-        this.ctx.currentTime
-      );
-      this.masterGain.gain.linearRampToValueAtTime(targetGain, this.ctx.currentTime + 0.35);
-    }
-
-    const stepMs = (60 / this.track.bpm / 2) * 1000;
-    this.scheduleStep();
-    this.timerId = window.setInterval(() => {
-      this.scheduleStep();
-    }, stepMs);
-  }
-
-  private playTone(
-    freq: number,
-    duration: number,
-    gainPeak: number,
-    type: OscillatorType,
-    attackSec: number,
-    delayOffset = 0,
-    detuneCents = 0
-  ) {
-    if (!this.ctx || !this.lpFilter) return;
-    const now = this.ctx.currentTime + delayOffset;
-    const osc = this.ctx.createOscillator();
-    const g = this.ctx.createGain();
-
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, now);
-    if (detuneCents !== 0) {
-      osc.detune.setValueAtTime(detuneCents, now);
-    }
-
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.linearRampToValueAtTime(gainPeak, now + Math.max(0.015, attackSec));
-    g.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.15, duration));
-
-    osc.connect(g);
-    g.connect(this.lpFilter);
-
-    osc.start(now);
-    osc.stop(now + duration + 0.08);
-  }
-
-  private scheduleStep() {
-    if (!this.playing || !this.track || !this.ctx || this.ctx.state !== 'running') return;
-    const tr = this.track;
-    const stepMs = (60 / tr.bpm / 2) * 1000; // eighth-note pulse
-    const chordIdx = Math.floor(this.stepIndex / 8) % tr.chords.length;
-    const stepInBar = this.stepIndex % 8;
-    const chord = tr.chords[chordIdx];
-    const beatSec = stepMs / 1000;
-
-    // On downbeat of each bar (step 0): play warm bass + lush pad chord
-    if (stepInBar === 0) {
-      const bassMidi = chord[0] - 12;
-      this.playTone(midiToFreq(bassMidi), beatSec * 7.5, 0.14, 'sine', 0.08);
-
-      if (tr.voice === 'velvet-strings') {
-        chord.forEach((m, idx) => {
-          this.playTone(midiToFreq(m), beatSec * 8.2, 0.048, 'sine', 0.9, idx * 0.03, -5);
-          this.playTone(midiToFreq(m), beatSec * 8.2, 0.032, 'triangle', 1.1, idx * 0.03, 5);
-        });
-      } else if (tr.voice === 'harp-pad') {
-        chord.slice(0, 4).forEach((m, idx) => {
-          this.playTone(midiToFreq(m), beatSec * 7.2, 0.04, 'sine', 0.65, idx * 0.05);
-        });
-      } else if (tr.voice === 'rhodes-lounge') {
-        chord.forEach((m, idx) => {
-          this.playTone(midiToFreq(m), beatSec * 5.8, 0.052, 'sine', 0.03, idx * 0.04);
-          this.playTone(midiToFreq(m + 12), beatSec * 1.4, 0.018, 'sine', 0.015, idx * 0.04);
-        });
-      } else {
-        // felt-piano
-        chord.forEach((m, idx) => {
-          this.playTone(midiToFreq(m), beatSec * 6.0, 0.055, 'triangle', 0.025, idx * 0.035);
-          this.playTone(midiToFreq(m), beatSec * 6.4, 0.04, 'sine', 0.02, idx * 0.035);
-        });
-      }
-    }
-
-    // Gentle mid-bar shimmer on beat 4
-    if (stepInBar === 4 && (tr.voice === 'rhodes-lounge' || tr.voice === 'felt-piano')) {
-      const midMidi = chord[2];
-      this.playTone(midiToFreq(midMidi), beatSec * 3.2, 0.042, 'sine', 0.025);
-    }
-
-    // Melodic motif note
-    const offsetIdx = tr.melodyOffsets[stepInBar % tr.melodyOffsets.length];
-    const shouldPlayMelody =
-      tr.voice === 'harp-pad'
-        ? stepInBar % 1 === 0
-        : tr.voice === 'velvet-strings'
-        ? stepInBar === 0 || stepInBar === 3 || stepInBar === 6
-        : stepInBar === 0 || stepInBar === 2 || stepInBar === 3 || stepInBar === 5 || stepInBar === 7;
-
-    if (shouldPlayMelody) {
-      const baseNote = chord[offsetIdx % chord.length];
-      const octaveShift = offsetIdx >= chord.length ? 24 : 12;
-      const melFreq = midiToFreq(baseNote + octaveShift);
-
-      if (tr.voice === 'felt-piano') {
-        this.playTone(melFreq, beatSec * 3.4, 0.075, 'triangle', 0.018);
-        this.playTone(melFreq * 2, beatSec * 1.2, 0.012, 'sine', 0.01);
-      } else if (tr.voice === 'harp-pad') {
-        this.playTone(melFreq, beatSec * 2.8, 0.068, 'sine', 0.012);
-        this.playTone(melFreq * 2, beatSec * 1.5, 0.016, 'sine', 0.01);
-      } else if (tr.voice === 'rhodes-lounge') {
-        this.playTone(melFreq, beatSec * 2.9, 0.07, 'sine', 0.018);
-        this.playTone(melFreq * 3, beatSec * 0.45, 0.01, 'sine', 0.008);
-      } else {
-        this.playTone(melFreq, beatSec * 5.2, 0.055, 'sine', 0.45, 0, 4);
-      }
-    }
-
-    this.stepIndex += 1;
-
-    // Auto-advance at track duration
-    const elapsedSec = (Date.now() - this.trackStartTime) / 1000;
-    if (elapsedSec >= tr.durationSec && this.onTrackEndCallback) {
-      this.onTrackEndCallback();
-    }
   }
 
   public start(track: LuxuryTrack, onTrackEnd?: () => void) {
     this.userStopped = false;
-    const ctx = this.ensureContext();
-    if (!ctx) return;
+    const el = this.ensureAudio();
+    if (!el) return;
 
-    this.stopTimer();
     this.track = track;
-    this.stepIndex = 0;
+    this.elapsedSec = 0;
+    this.durationSec = track.durationSec;
     this.playing = true;
-    this.trackStartTime = Date.now();
-    this.onTrackEndCallback = onTrackEnd ?? null;
+    this.onTrackEndCallback = onTrackEnd ?? this.onTrackEndCallback;
 
-    if (ctx.state === 'running') {
-      this.waitingForGesture = false;
-      this.removeGestureListeners();
-      this.beginPlaybackLoop();
-    } else {
-      this.waitingForGesture = true;
-      this.installGestureListeners();
-    }
+    el.pause();
+    el.src = track.previewUrl;
+    el.currentTime = 0;
+    this.tryPlayElement(el);
     this.emit();
   }
 
@@ -761,10 +621,8 @@ class LuxuryMusicEngine {
     this.playing = false;
     this.waitingForGesture = false;
     this.removeGestureListeners();
-    this.stopTimer();
-    if (this.ctx && this.masterGain) {
-      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.masterGain.gain.linearRampToValueAtTime(0.0001, this.ctx.currentTime + 0.25);
+    if (this.audio) {
+      this.audio.pause();
     }
     this.emit();
   }
@@ -775,18 +633,13 @@ class LuxuryMusicEngine {
       this.start(LUXURY_PLAYLIST[0], this.onTrackEndCallback ?? undefined);
       return;
     }
-    const ctx = this.ensureContext();
-    if (!ctx) return;
-    this.playing = true;
-    this.waitingForGesture = ctx.state !== 'running';
-    this.stopTimer();
-
-    if (ctx.state === 'running') {
-      this.removeGestureListeners();
-      this.beginPlaybackLoop();
-    } else {
-      this.installGestureListeners();
+    const el = this.ensureAudio();
+    if (!el) return;
+    if (el.src !== this.track.previewUrl) {
+      el.src = this.track.previewUrl;
     }
+    this.playing = true;
+    this.tryPlayElement(el);
     this.emit();
   }
 
@@ -795,41 +648,32 @@ class LuxuryMusicEngine {
     this.playing = false;
     this.waitingForGesture = false;
     this.removeGestureListeners();
-    this.stopTimer();
-    if (this.ctx && this.masterGain) {
-      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.masterGain.gain.linearRampToValueAtTime(0.0001, this.ctx.currentTime + 0.25);
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.removeAttribute('src');
+      this.audio.load();
     }
     this.track = null;
-    this.stepIndex = 0;
+    this.elapsedSec = 0;
+    this.durationSec = 30;
     this.emit();
   }
 
   public setMuted(muted: boolean) {
     this.muted = muted;
-    if (this.ctx && this.masterGain) {
-      const targetGain = muted || !this.playing ? 0 : this.volume * 0.42;
-      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.masterGain.gain.linearRampToValueAtTime(targetGain, this.ctx.currentTime + 0.15);
+    if (this.audio) {
+      this.audio.muted = muted;
     }
     this.emit();
   }
 
   public setVolume(vol: number) {
     this.volume = Math.max(0, Math.min(1, vol));
-    if (this.ctx && this.masterGain && !this.muted && this.playing) {
-      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.masterGain.gain.linearRampToValueAtTime(this.volume * 0.42, this.ctx.currentTime + 0.1);
+    if (this.audio) {
+      this.audio.volume = this.volume;
     }
     this.emit();
   }
-
-  private stopTimer() {
-    if (this.timerId !== null) {
-      window.clearInterval(this.timerId);
-      this.timerId = null;
-    }
-  }
 }
 
-export const luxuryMusicEngine = new LuxuryMusicEngine();
+export const luxuryMusicEngine = new HitMusicEngine();

@@ -26,6 +26,7 @@ import {
   writeBatch,
   WriteBatch,
 } from 'firebase/firestore';
+import { FloatingCartoonKavin } from './components/CartoonKavin';
 import { ChristmasHouseScene } from './components/ChristmasHouseScene';
 import { CompareView } from './components/CompareView';
 import { MiniCatFace } from './components/CuteWalkingCats';
@@ -1875,14 +1876,14 @@ export default function App() {
                         playClickSound();
                         setIsMusicHubOpen(true);
                       }}
-                      title="เลือกฟังเพลงบรรเลงลักชัวรี 20 เพลง (Grand Piano · Harp · Hotel Lounge · Strings)"
+                      title="เลือกฟังเพลงฮิตไทย & สากล 20 เพลง เล่นต่อเนื่องอัตโนมัติ"
                       className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-[#E5C57B] bg-white/8 hover:bg-white/16 border border-[#C59B48]/35 rounded-xl transition-colors cursor-pointer whitespace-nowrap active:scale-[0.98]"
                     >
                       <Music className="w-3.5 h-3.5 shrink-0" />
                       <span>
                         {activeLuxuryTrack
-                          ? `กำลังบรรเลง: ${activeLuxuryTrack.title}`
-                          : 'เพลงบรรเลงหรู (20 เพลง)'}
+                          ? `กำลังเล่น: ${activeLuxuryTrack.title}`
+                          : 'เพลงฮิต (20 เพลง)'}
                       </span>
                     </button>
                   </div>
@@ -2141,7 +2142,7 @@ export default function App() {
                     className="min-h-[42px] inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#14191F] bg-[#E5C57B] hover:bg-[#D4B368] rounded-xl cursor-pointer transition-colors"
                   >
                     <Music className="w-3.5 h-3.5" />
-                    เลือกเพลงบรรเลงลักชัวรี (20 เพลง)
+                    เลือกฟังเพลงฮิตไทย &amp; สากล (20 เพลง)
                   </button>
 
                   {isStaffMode && (
@@ -2161,8 +2162,8 @@ export default function App() {
 
                 <p className="mt-2.5 text-[11px] text-zinc-400">
                   {activeLuxuryTrack
-                    ? `กำลังบรรเลง: ${activeLuxuryTrack.title} · ${activeLuxuryTrack.subtitle}`
-                    : 'เฉพาะเพลงบรรเลงระดับลักชัวรี 20 บทเพลง (Grand Piano · Harp · Hotel Lounge · Velvet Strings)'}
+                    ? `กำลังเล่น: ${activeLuxuryTrack.title} · ${activeLuxuryTrack.subtitle}`
+                    : 'รวมเพลงฮิตไทยและสากล 20 เพลง เล่นต่อเนื่องอัตโนมัติ (T-Pop · ไทยป๊อป · Global Hits · R&B)'}
                 </p>
               </div>
             </div>
@@ -2327,6 +2328,14 @@ export default function App() {
           isOpen={showKavinIntro}
           onEnter={() => setShowKavinIntro(false)}
         />
+
+        {!showKavinIntro && (
+          <FloatingCartoonKavin
+            onOpenLoanTab={() => {
+              if (isStaffMode) setActiveTab('loans');
+            }}
+          />
+        )}
 
         <MusicJukeboxModal
           isOpen={isMusicHubOpen}
